@@ -1,0 +1,4 @@
+__pycache__/
+.venv/
+notch.log
+notch_settings.json

@@ -1,0 +1,2 @@
+PySide6-Essentials
+python-xlib; sys_platform == "linux"
