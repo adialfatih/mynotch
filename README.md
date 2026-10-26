@@ -8,7 +8,7 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 - Di luar terminal, matanya mengikuti kursor mouse. Kalau mouse diam, dia melirik-lirik sendiri.
 - Mouse digerakkan cepat di dekat notch: kaget.
 - Tidak ada input selama 60 detik: tidur (z z z).
-- **Windows:** saat mengetik di aplikasi apa pun (Notepad, Word, Excel, browser, dll.), matanya fokus ke bawah dan bar equalizer ikut bergerak, sama seperti di terminal. Shortcut (Ctrl+C, Ctrl+V, dll.) dan tombol navigasi (panah, Page Down) tidak dihitung mengetik.
+- **Efek mengetik** juga bisa aktif di luar terminal: Word, Excel, Notepad, browser, dan VS Code (di Ubuntu: LibreOffice Writer, LibreOffice Calc, Text Editor, browser, VS Code). Matanya fokus ke bawah dan bar equalizer ikut bergerak. Nyalakan/matikan per aplikasi lewat menu **Efek mengetik**. Shortcut (Ctrl+C, Ctrl+V, dll.) dan tombol navigasi (panah, Page Down) tidak dihitung mengetik.
 
 **Mode terminal** (Windows Terminal, PowerShell, CMD, gnome-terminal, Kitty, Alacritty, WezTerm, Tilix, Konsole, dll.)
 - Notch melebar. Warnanya oranye untuk Claude Code, biru untuk Codex, hijau untuk terminal biasa.
@@ -32,7 +32,7 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 - Disembunyikan otomatis saat ada aplikasi fullscreen (game, video). Bisa dimatikan.
 - Area di sekitar notch tembus klik, dan notch tidak mengambil fokus dari aplikasi yang sedang aktif.
 
-> **Privasi:** notch hanya mendeteksi *ada* tombol yang ditekan (dan jenisnya: Enter, Backspace, Ctrl+C) saat terminal aktif, dan di Windows juga saat mengetik di aplikasi lain. Isi ketikan tidak pernah dibaca atau disimpan.
+> **Privasi:** notch hanya mendeteksi *ada* tombol yang ditekan (dan jenisnya: Enter, Backspace, Ctrl+C) saat terminal atau aplikasi yang dinyalakan di menu **Efek mengetik** aktif. Isi ketikan tidak pernah dibaca atau disimpan.
 
 ## Instalasi
 
@@ -94,6 +94,7 @@ Lalu tutup notch (klik kanan → **Keluar**) dan jalankan lagi.
 **Menu klik kanan** (notch memanjang ke bawah jadi panel pengaturan; tutup dengan klik di luar, klik kanan lagi, atau gerakkan kursor menjauh):
 - **Sembunyi kalau ada app fullscreen**
 - **Jalan otomatis saat komputer nyala**: Windows lewat folder Startup, Ubuntu lewat `~/.config/autostart`
+- **Efek mengetik**: menu bergeser ke daftar saklar per aplikasi (Terminal, Microsoft Word, Microsoft Excel, Notepad, Browser, VS Code). Bawaan Windows: semua nyala. Bawaan Ubuntu: hanya Terminal dan VS Code. Aplikasi di luar daftar tidak memicu efek mengetik.
 - **Lokasi sholat**: menu bergeser ke halaman lokasi di dalam notch. Ketik nama kota/kabupaten (misalnya `pekalongan`), pilih Kab./Kota yang benar (klik atau ↑ ↓), lalu **Simpan** atau Enter. Esc / **Batal** untuk kembali.
 - **Keluar**
 
@@ -103,7 +104,7 @@ Pengaturan disimpan di `notch_settings.json` (tidak ikut di-commit).
 
 - **YouTube biasa:** "artis" yang tampil adalah nama channel. Tombol next/prev mengikuti perilaku YouTube: next butuh playlist atau autoplay, dan prev biasanya kembali ke awal video.
 - **"Lagi mikir"** ditebak dari judul jendela terminal yang berubah cepat (spinner). Kalau tool-nya tidak mengubah judul terminal, mode ini tidak muncul.
-- **Terminal bawaan VS Code** tidak terdeteksi sebagai terminal.
+- **Terminal bawaan VS Code** tidak terdeteksi sebagai terminal (warna, "terkirim ✓", dan "lagi mikir" tidak muncul), tapi efek mengetiknya ikut saklar **VS Code**.
 - **Fitur musik opsional.** Kalau paket `winrt-*` (Windows) atau `jeepney` (Ubuntu) belum terpasang, notch tetap jalan tanpa fitur musik.
 
 ## Troubleshooting

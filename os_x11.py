@@ -27,7 +27,22 @@ TERMINALS = {
     "urxvt": "urxvt", "st-256color": "st", "foot": "foot", "rio": "Rio",
 }
 
-AUTOSTART_FILE = os.path.join(os.path.expanduser("~"), ".config", "autostart", "notch.desktop")
+# menu "Mengetik": kunci -> (label, WM_CLASS, nyala bawaan)
+TYPING_APPS = {
+    "terminal": ("Terminal", set(TERMINALS), True),
+    "word": ("LibreOffice Writer", {"libreoffice-writer"}, False),
+    "excel": ("LibreOffice Calc", {"libreoffice-calc"}, False),
+    "notepad": ("Text Editor", {"gedit", "org.gnome.gedit", "gnome-text-editor",
+                                "org.gnome.texteditor", "mousepad", "xed", "pluma", "kate",
+                                "kwrite"}, False),
+    "browser": ("Browser", {"firefox", "firefox_firefox", "google-chrome", "chromium",
+                            "chromium-browser", "brave-browser", "microsoft-edge", "opera",
+                            "vivaldi-stable", "zen"}, False),
+    "vscode": ("VS Code", {"code", "code - insiders", "code-oss", "vscodium"}, True),
+}
+KNOWN_APPS = set().union(*(ids for _, ids, _ in TYPING_APPS.values()))
+
+AUTOSTART_FILE =os.path.join(os.path.expanduser("~"), ".config", "autostart", "notch.desktop")
 
 MODIFIER_NAMES = ("Shift_L", "Shift_R", "Control_L", "Control_R", "Alt_L", "Alt_R",
                   "Super_L", "Super_R", "Meta_L", "Meta_R", "Caps_Lock", "ISO_Level3_Shift")
@@ -37,7 +52,7 @@ class Platform:
     FONT = "Ubuntu"
     TERMINALS = TERMINALS
     MENU_FLUSH = False  # notch di bawah top bar GNOME, biarkan melayang
-    TYPE_ANYWHERE = False  # efek ngetik cuma di terminal
+    TYPING_APPS = TYPING_APPS
 
     def __init__(self):
         self.d = display.Display()
@@ -60,6 +75,13 @@ class Platform:
         self.KEY_C = keycode("c")
         self.CTRL_KEYS = {keycode("Control_L"), keycode("Control_R")}
         self.MODIFIER_KEYS = {keycode(n) for n in MODIFIER_NAMES} - {0}
+        # di luar terminal cuma tombol yang menghasilkan teks yang dihitung ngetik
+        text = [chr(c) for c in range(ord("a"), ord("z") + 1)] + [str(d) for d in range(10)]
+        text += [f"KP_{d}" for d in range(10)]
+        text += ["space", "Return", "KP_Enter", "BackSpace", "minus", "equal", "bracketleft",
+                 "bracketright", "backslash", "semicolon", "apostrophe", "grave", "comma",
+                 "period", "slash"]
+        self.TEXT_KEYS = {keycode(n) for n in text} - {0}
 
     def atom(self, name):
         if name not in self.atoms:
@@ -89,7 +111,8 @@ class Platform:
             names = [n.lower() for n in (w.get_wm_class() or ()) if n]
         except error.XError:
             return ""
-        return next((n for n in names if n in TERMINALS), names[0] if names else "")
+        # Firefox: WM_CLASS ("Navigator", "firefox"), jadi cari nama yang dikenal dulu
+        return next((n for n in names if n in KNOWN_APPS), names[0] if names else "")
 
     def window_title(self, wid):
         if not wid:

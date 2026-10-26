@@ -64,13 +64,14 @@ MENU_EAR = 9            # lengkung cekung di sudut atas saat menu menempel ke te
 MEDIA_TOAST = 3.5       # detik notifikasi lagu baru tampil
 
 # menu klik kanan: notch memanjang ke bawah jadi panel
-MENU_KEYS = ("fullscreen", "autostart", "lokasi", "quit")
+MENU_KEYS = ("fullscreen", "autostart", "ketik", "lokasi", "quit")
 MENU_W = 330
 MENU_HEAD = 46          # baris atas (mata + judul)
 MENU_ROW = 34
 MENU_SEP = 9            # jarak garis pemisah sebelum "Keluar"
 MENU_H = MENU_HEAD + len(MENU_KEYS) * MENU_ROW + MENU_SEP + 8
-MENU_LINGER = 0.8       # detik menu bertahan setelah kursor keluar
+KETIK_ROW = 29          # baris saklar di halaman "Mengetik" (6 aplikasi harus muat)
+MENU_LINGER = 0.8      # detik menu bertahan setelah kursor keluar
 LOC_SEARCH_DELAY = 0.45 # detik jeda setelah berhenti ngetik sebelum cari kota
 ROW_MAX_H = 58          # tinggi baris atas di mode lain (panel musik)
 
@@ -229,7 +230,7 @@ class Notch(QWidget):
         self.hl_a = Spring(0, 300, 1.0)
         self.sw_fs = Spring(0, 320, 0.6)
         self.sw_auto = Spring(0, 320, 0.6)
-        self.page = Spring(0, 200, 0.85)  # 0 = daftar menu, 1 = halaman lokasi sholat
+        self.page = Spring(0, 200, 0.85)  # 0 = daftar menu, 1 = halaman self.sub
         self.springs = [self.pw, self.ph, self.py, self.expand, self.look_x, self.look_y,
                         self.open, self.happy, self.lid, self.sleepf, self.musicf, self.alpha,
                         self.menuf, self.hl_y, self.hl_a, self.sw_fs, self.sw_auto, self.page]
@@ -239,6 +240,11 @@ class Notch(QWidget):
         self.t0 = self.last = now
         self.settings = load_settings()
         self.hide_on_fullscreen = self.settings.get("hide_on_fullscreen", True)
+        saved = self.settings.get("typing", {})
+        self.typing_on = {k: saved.get(k, on) for k, (_, _, on) in plat.TYPING_APPS.items()}
+        self.sw_type = {k: Spring(float(on), 320, 0.6) for k, on in self.typing_on.items()}
+        self.springs += self.sw_type.values()
+        self.type_cat = None  # kunci TYPING_APPS untuk aplikasi yang lagi aktif
         self.jadwal = self.settings.get("jadwal", {})
         self.fetching = False
         self.prayer_until = 0.0
@@ -306,6 +312,7 @@ class Notch(QWidget):
         self.menu_pressed_at = -99.0
         self.autostart_on = False
         self.autostart_lock = threading.Lock()
+        self.sub = "lokasi"  # halaman kanan menu: "lokasi" atau "ketik"
         self.loc_editing = False
         self.loc_text = ""
         self.loc_results = None
@@ -344,6 +351,8 @@ class Notch(QWidget):
             self.fg_app = app
             self.fg_title = self.plat.window_title(win) if win else ""
             self.in_terminal = app in self.plat.TERMINALS
+            self.type_cat = next((k for k, (_, ids, _) in self.plat.TYPING_APPS.items()
+                                  if app in ids), None)
             self.title_changes.clear()
             self.kb_prev = None
             self.line_len = 0
@@ -552,12 +561,23 @@ class Notch(QWidget):
                                               rect.width() - 16, MENU_ROW)))
         return items
 
+    def ketik_layout(self, rect):
+        """[(kunci, kotak)] halaman Mengetik: Kembali, lalu satu saklar per aplikasi."""
+        items = [("kembali", QRectF(rect.right() - 80, rect.top() + 6, 70, MENU_HEAD - 14))]
+        for i, cat in enumerate(self.plat.TYPING_APPS):
+            items.append((f"app:{cat}", QRectF(rect.left() + 8, rect.top() + MENU_HEAD + 2 + i * KETIK_ROW,
+                                               rect.width() - 16, KETIK_ROW)))
+        return items
+
+    def page_items(self, rect):
+        if not self.page.target:
+            return self.menu_rows(rect)
+        return self.loc_layout(rect) if self.sub == "lokasi" else self.ketik_layout(rect)
+
     def menu_item_at(self, pos):
         if not self.menu_open or self.menuf.x < 0.5 or abs(self.page.x - self.page.target) > 0.5:
             return None  # belum kebuka / lagi geser halaman
-        rect = self.pill_rect()
-        items = self.loc_layout(rect) if self.page.target else self.menu_rows(rect)
-        return next((key for key, r in items if r.contains(pos)), None)
+        return next((key for key, r in self.page_items(self.pill_rect()) if r.contains(pos)), None)
 
     def menu_click(self, e, now):
         if e.button() == Qt.RightButton:
@@ -581,13 +601,23 @@ class Notch(QWidget):
             self.sw_auto.target = float(self.autostart_on)
             # di Windows butuh PowerShell (lambat): jangan bekukan animasi
             threading.Thread(target=self._apply_autostart, daemon=True).start()
+        elif key == "ketik":
+            self.open_sub("ketik")
+        elif key == "kembali":
+            self.close_sub()
+        elif key.startswith("app:"):
+            cat = key[4:]
+            self.typing_on[cat] = not self.typing_on[cat]
+            self.sw_type[cat].target = float(self.typing_on[cat])
+            self.settings["typing"] = dict(self.typing_on)
+            save_settings(self.settings)
         elif key == "lokasi":
             self.open_lokasi(now)
         elif key == "quit":
             self.close_menu()
             QTimer.singleShot(260, QApplication.quit)  # biar animasi menutup kelihatan dulu
         elif key == "batal":
-            self.close_lokasi()
+            self.close_sub()
         elif key == "simpan":
             self.save_lokasi(now)
         elif key == "field":
@@ -619,10 +649,9 @@ class Notch(QWidget):
                              args=(self.loc_token, self.loc_text.strip())).start()
 
         key = self.menu_item_at(QPointF(self.mapFromGlobal(QCursor.pos())))
-        row = key if key in MENU_KEYS or (key or "").startswith("hasil") else None
+        row = key if key in MENU_KEYS or (key or "").startswith(("hasil", "app:")) else None
         if row:
-            items = self.loc_layout(rect) if self.page.target else self.menu_rows(rect)
-            y = dict(items)[row].top() - rect.top()
+            y = dict(self.page_items(rect))[row].top() - rect.top()
             if self.hl_a.x < 0.05:  # sorotan baru muncul: langsung di baris itu, jangan meluncur
                 self.hl_y.x, self.hl_y.v = y, 0.0
             self.hl_y.target = y
@@ -630,11 +659,20 @@ class Notch(QWidget):
         self.menu_hover = key
         self.hl_a.target = 1.0 if row else 0.0
 
+    def open_sub(self, sub):
+        """Geser ke halaman kanan menu (lokasi sholat / mengetik)."""
+        self.sub = sub
+        self.page.target = 1.0
+        self.hl_a.x = self.hl_a.target = 0.0
+
+    def typing_summary(self):
+        n = sum(self.typing_on.values())
+        return "Semua" if n == len(self.typing_on) else f"{n} aplikasi" if n else "Mati"
+
     # -------------------------------------------------------------- menu: lokasi sholat
     def open_lokasi(self, now):
         """Geser ke halaman lokasi dan ambil keyboard supaya bisa ngetik di notch."""
-        self.page.target = 1.0
-        self.hl_a.x = self.hl_a.target = 0.0
+        self.open_sub("lokasi")
         self.loc_text = None  # paksa set_loc_text mengisi ulang semuanya
         self.set_loc_text("")
         self.loc_key_at = now
@@ -642,7 +680,7 @@ class Notch(QWidget):
         self.plat.take_focus()
         self.grabKeyboard()
 
-    def close_lokasi(self):
+    def close_sub(self):
         self.end_editing()
         self.page.target = 0.0
         self.hl_a.x = self.hl_a.target = 0.0
@@ -707,7 +745,7 @@ class Notch(QWidget):
         save_settings(self.settings)
         self.ensure_jadwal()
         self.happy_until = now + 1.0
-        self.close_lokasi()
+        self.close_sub()
 
     def keyPressEvent(self, e):
         if not self.loc_editing:
@@ -715,7 +753,7 @@ class Notch(QWidget):
         self.loc_key_at = time.perf_counter()
         key = e.key()
         if key == Qt.Key_Escape:
-            self.close_lokasi()
+            self.close_sub()
         elif key in (Qt.Key_Return, Qt.Key_Enter):
             if self.loc_choice():
                 self.save_lokasi(self.loc_key_at)
@@ -883,7 +921,7 @@ class Notch(QWidget):
             self.last_mouse_move = now
 
         self.update_foreground(now)
-        watch_keys = self.in_terminal or self.plat.TYPE_ANYWHERE
+        watch_keys = bool(self.type_cat and self.typing_on[self.type_cat])
         if watch_keys and not self.menu_open:
             self.poll_keys(now)
         else:
@@ -1152,10 +1190,12 @@ class Notch(QWidget):
                                                                    int(area.width())))
             elif self.mode == "menu":  # judul halaman berganti pelan saat geser
                 pg = clamp(self.page.x)
-                batal = QColor(245, 245, 250) if self.menu_hover == "batal" else QColor(150, 150, 160)
+                title2, back, back_key = (("Lokasi sholat", "Batal", "batal") if self.sub == "lokasi"
+                                          else ("Mengetik", "Kembali", "kembali"))
+                back_c = QColor(245, 245, 250) if self.menu_hover == back_key else QColor(150, 150, 160)
                 for title, right, rc, al in (("Pengaturan", time.strftime("%H:%M"),
                                               QColor(150, 150, 160), 1 - pg),
-                                             ("Lokasi sholat", "Batal", batal, pg)):
+                                             (title2, back, back_c, pg)):
                     if al < 0.01:
                         continue
                     p.setOpacity(a * c * al)
@@ -1246,7 +1286,7 @@ class Notch(QWidget):
         y = rect.top() + MENU_HEAD - 4
         p.drawLine(QPointF(rect.left() + 18, y), QPointF(rect.right() - 18, y))
 
-        # dua halaman berdampingan: daftar menu di kiri, lokasi di kanan
+        # dua halaman berdampingan: daftar menu di kiri, lokasi / mengetik di kanan
         pg = self.page.x
         for page, shift in ((0, -pg), (1, 1 - pg)):
             if abs(shift) > 0.999:  # halaman di luar notch
@@ -1256,12 +1296,14 @@ class Notch(QWidget):
             p.translate(shift * rect.width(), 0)
             if page == 0:
                 self.paint_menu_main(p, rect, col, a * fade, m)
-            else:
+            elif self.sub == "lokasi":
                 self.paint_menu_lokasi(p, rect, col, a * fade, m)
+            else:
+                self.paint_menu_ketik(p, rect, col, a * fade, m)
             p.restore()
         p.setOpacity(a)
 
-    def paint_highlight(self, p, rect, m, page_keys):
+    def paint_highlight(self, p, rect, m, page_keys, row_h=MENU_ROW):
         hl = clamp(self.hl_a.x) * m
         if hl < 0.01 or self.hl_key is None or not page_keys(self.hl_key):
             return
@@ -1272,7 +1314,19 @@ class Notch(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(c)
         p.drawRoundedRect(QRectF(rect.left() + 8, rect.top() + self.hl_y.x,
-                                 rect.width() - 16, MENU_ROW), 11, 11)
+                                 rect.width() - 16, row_h), 11, 11)
+
+    def paint_switch(self, p, right, cy, v, col):
+        """Saklar ala iOS (v 0..1, kenopnya pakai pegas); balikin x tepi kirinya."""
+        k = clamp(v)
+        track = QRectF(right - 30, cy - 9, 30, 18)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(int(lerp(255, col.red(), k)), int(lerp(255, col.green(), k)),
+                          int(lerp(255, col.blue(), k)), int(lerp(40, 255, k))))
+        p.drawRoundedRect(track, 9, 9)
+        p.setBrush(QColor(250, 250, 252))
+        p.drawEllipse(QPointF(track.left() + 9 + v * 12, cy), 7, 7)
+        return track.left()
 
     def paint_menu_main(self, p, rect, col, a, m):
         rows = self.menu_rows(rect)
@@ -1287,7 +1341,7 @@ class Notch(QWidget):
         lokasi = self.settings.get("sholat")
         labels = {"fullscreen": "Sembunyi saat ada app fullscreen",
                   "autostart": "Jalan otomatis saat komputer nyala",
-                  "lokasi": "Lokasi sholat", "quit": "Keluar"}
+                  "ketik": "Efek mengetik", "lokasi": "Lokasi sholat", "quit": "Keluar"}
         fm = QFontMetrics(self.font_item)
         fm_small = QFontMetrics(self.font_small)
         for i, (key, r) in enumerate(rows):
@@ -1302,20 +1356,13 @@ class Notch(QWidget):
             self.paint_menu_icon(p, key, QPointF(r.left() + 17, cy), fg)
             text_x, right = r.left() + 36, r.right() - 12
 
-            if key in ("fullscreen", "autostart"):  # saklar ala iOS, kenopnya pakai pegas
+            if key in ("fullscreen", "autostart"):
                 v = (self.sw_fs if key == "fullscreen" else self.sw_auto).x
-                k = clamp(v)
-                track = QRectF(right - 30, cy - 9, 30, 18)
-                p.setPen(Qt.NoPen)
-                p.setBrush(QColor(int(lerp(255, col.red(), k)), int(lerp(255, col.green(), k)),
-                                  int(lerp(255, col.blue(), k)), int(lerp(40, 255, k))))
-                p.drawRoundedRect(track, 9, 9)
-                p.setBrush(QColor(250, 250, 252))
-                p.drawEllipse(QPointF(track.left() + 9 + v * 12, cy), 7, 7)
-                right = track.left() - 10
-            elif key == "lokasi":  # nama kota + ›
+                right = self.paint_switch(p, right, cy, v, col) - 10
+            elif key in ("ketik", "lokasi"):  # ringkasan + ›
                 self.paint_chevron(p, QPointF(right, cy))
-                value = lokasi["lokasi"] if lokasi else "Atur"
+                value = (self.typing_summary() if key == "ketik" else
+                         lokasi["lokasi"] if lokasi else "Atur")
                 vw = min(fm_small.horizontalAdvance(value), 130)
                 p.setFont(self.font_small)
                 p.drawText(QRectF(right - 12 - vw, r.top(), vw, r.height()),
@@ -1328,6 +1375,21 @@ class Notch(QWidget):
             p.setPen(fg)
             p.drawText(QRectF(text_x, r.top(), text_w, r.height()), Qt.AlignVCenter | Qt.AlignLeft,
                        fm.elidedText(labels[key], Qt.ElideRight, text_w))
+
+    def paint_menu_ketik(self, p, rect, col, a, m):
+        p.setOpacity(a * m)
+        self.paint_highlight(p, rect, m, lambda k: k.startswith("app:"), KETIK_ROW)
+        fm = QFontMetrics(self.font_item)
+        for key, r in self.ketik_layout(rect)[1:]:
+            cat = key[4:]
+            cy = r.center().y()
+            right = self.paint_switch(p, r.right() - 12, cy, self.sw_type[cat].x, col) - 10
+            text_w = max(0, int(right - r.left() - 16))
+            p.setFont(self.font_item)
+            p.setPen(QColor(245, 245, 250) if key == self.menu_hover else QColor(205, 205, 214))
+            p.drawText(QRectF(r.left() + 16, r.top(), text_w, r.height()),
+                       Qt.AlignVCenter | Qt.AlignLeft,
+                       fm.elidedText(self.plat.TYPING_APPS[cat][0], Qt.ElideRight, text_w))
 
     def paint_menu_lokasi(self, p, rect, col, a, m):
         now = time.perf_counter()
@@ -1431,6 +1493,13 @@ class Notch(QWidget):
             p.setBrush(color)
             p.drawPolygon(QPolygonF([QPointF(1.5, -7), QPointF(-4.5, 1), QPointF(-0.5, 1),
                                      QPointF(-1.5, 7), QPointF(4.5, -1), QPointF(0.5, -1)]))
+        elif key == "ketik":  # keyboard
+            p.drawRoundedRect(QRectF(-7, -5, 14, 10), 2.5, 2.5)
+            p.drawLine(QPointF(-3, 2), QPointF(3, 2))
+            p.setPen(Qt.NoPen)
+            p.setBrush(color)
+            for x in (-4, -1.3, 1.3, 4):
+                p.drawEllipse(QPointF(x, -1.5), 0.9, 0.9)
         elif key == "lokasi":  # pin peta
             pin = QPainterPath()
             pin.moveTo(0, 7)
