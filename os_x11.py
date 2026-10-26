@@ -126,6 +126,14 @@ class Platform:
             return set()
         return {i * 8 + bit for i, byte in enumerate(keymap) for bit in range(8) if byte >> bit & 1}
 
+    def mouse_down(self):
+        """True kalau ada tombol mouse (kiri/kanan/tengah) yang sedang ditekan."""
+        try:
+            mask = self.root.query_pointer().mask
+        except error.XError:
+            return False
+        return bool(mask & (X.Button1Mask | X.Button2Mask | X.Button3Mask))
+
     def idle_seconds(self):
         if self.has_idle:
             try:
@@ -170,6 +178,12 @@ class Platform:
 
     def keep_on_top(self):
         pass  # sudah diurus window manager lewat _NET_WM_STATE_ABOVE
+
+    def take_focus(self):
+        pass  # ketikan ditangkap lewat grabKeyboard() Qt (XGrabKeyboard), tanpa ganti fokus
+
+    def release_focus(self):
+        pass
 
     # ---- lain-lain
     def single_instance(self):

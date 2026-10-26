@@ -52,6 +52,11 @@ user32.SetWindowLongPtrW.argtypes = [wt.HWND, ctypes.c_int, ctypes.c_ssize_t]
 user32.SetWindowLongPtrW.restype = ctypes.c_ssize_t
 user32.SetWindowPos.argtypes = [wt.HWND, wt.HWND, ctypes.c_int, ctypes.c_int,
                                 ctypes.c_int, ctypes.c_int, wt.UINT]
+user32.GetWindowThreadProcessId.restype = wt.DWORD
+user32.SetForegroundWindow.argtypes = [wt.HWND]
+user32.IsWindow.argtypes = [wt.HWND]
+user32.AttachThreadInput.argtypes = [wt.DWORD, wt.DWORD, wt.BOOL]
+kernel32.GetCurrentThreadId.restype = wt.DWORD
 kernel32.OpenProcess.argtypes = [wt.DWORD, wt.BOOL, wt.DWORD]
 kernel32.OpenProcess.restype = wt.HANDLE
 kernel32.QueryFullProcessImageNameW.argtypes = [wt.HANDLE, wt.DWORD, wt.LPWSTR,
@@ -117,6 +122,7 @@ class Platform:
         self.hwnd = 0
         self.click_through = None
         self.own_pid = os.getpid()
+        self.prev_focus = 0
 
     # ---- jendela aktif
     def active_window(self):
@@ -155,6 +161,10 @@ class Platform:
     def keys_down(self):
         return {vk for vk in self.WATCHED_KEYS if user32.GetAsyncKeyState(vk) & 0x8000}
 
+    def mouse_down(self):
+        """True kalau ada tombol mouse (kiri/kanan/tengah) yang sedang ditekan."""
+        return any(user32.GetAsyncKeyState(vk) & 0x8000 for vk in (0x01, 0x02, 0x04))
+
     def idle_seconds(self):
         lii = LASTINPUTINFO(ctypes.sizeof(LASTINPUTINFO), 0)
         if not user32.GetLastInputInfo(ctypes.byref(lii)):
@@ -185,6 +195,32 @@ class Platform:
     def keep_on_top(self):
         if self.hwnd:
             user32.SetWindowPos(self.hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS)
+
+    def take_focus(self):
+        """Jadikan notch jendela aktif sementara supaya bisa menerima ketikan."""
+        fg = user32.GetForegroundWindow() or 0
+        if not self.hwnd or fg == self.hwnd:
+            return
+        self.prev_focus = fg
+        ex = user32.GetWindowLongPtrW(self.hwnd, GWL_EXSTYLE)
+        user32.SetWindowLongPtrW(self.hwnd, GWL_EXSTYLE, ex & ~WS_EX_NOACTIVATE)
+        # Windows cuma mengizinkan ganti jendela aktif dari thread yang nempel ke jendela aktif
+        fg_thread = user32.GetWindowThreadProcessId(fg, None) if fg else 0
+        me = kernel32.GetCurrentThreadId()
+        attached = bool(fg_thread) and fg_thread != me and user32.AttachThreadInput(me, fg_thread, True)
+        user32.SetForegroundWindow(self.hwnd)
+        if attached:
+            user32.AttachThreadInput(me, fg_thread, False)
+
+    def release_focus(self):
+        """Kembalikan fokus ke jendela yang aktif sebelum take_focus()."""
+        if not self.hwnd:
+            return
+        ex = user32.GetWindowLongPtrW(self.hwnd, GWL_EXSTYLE)
+        user32.SetWindowLongPtrW(self.hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE)
+        prev, self.prev_focus = self.prev_focus, 0
+        if user32.GetForegroundWindow() == self.hwnd and prev and user32.IsWindow(prev):
+            user32.SetForegroundWindow(prev)
 
     # ---- lain-lain
     def single_instance(self):

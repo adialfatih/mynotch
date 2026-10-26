@@ -86,10 +86,10 @@ Lalu tutup notch (klik kanan → **Keluar**) dan jalankan lagi.
 | Klik ⏮ ⏯ ⏭ (di panel musik) | Kontrol media |
 | Klik kanan | Menu |
 
-**Menu klik kanan:**
+**Menu klik kanan** (notch memanjang ke bawah jadi panel pengaturan; tutup dengan klik di luar, klik kanan lagi, atau gerakkan kursor menjauh):
 - **Sembunyi kalau ada app fullscreen**
 - **Jalan otomatis saat komputer nyala**: Windows lewat folder Startup, Ubuntu lewat `~/.config/autostart`
-- **Atur lokasi sholat…**: ketik nama kota/kabupaten (misalnya `pekalongan`), lalu pilih Kab./Kota yang benar
+- **Lokasi sholat**: menu bergeser ke halaman lokasi di dalam notch. Ketik nama kota/kabupaten (misalnya `pekalongan`), pilih Kab./Kota yang benar (klik atau ↑ ↓), lalu **Simpan** atau Enter. Esc / **Batal** untuk kembali.
 - **Keluar**
 
 Pengaturan disimpan di `notch_settings.json` (tidak ikut di-commit).
