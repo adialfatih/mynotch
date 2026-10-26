@@ -22,6 +22,7 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 
 **Jadwal sholat**
 - Klik 2x notch untuk melihat waktu sholat berikutnya dan berapa lama lagi.
+- Pengingat otomatis: mulai 5 menit sebelum waktu sholat, notch bergetar dan muncul "Waktu Dzuhur 5 menit lagi", lalu 4, 3, 2, 1 menit lagi. Saat waktunya tiba: "Waktunya sholat Dzuhur" + konfeti, dan notch berdenyut selama 30 detik.
 - Data resmi Kemenag per kabupaten/kota dari [api.myquran.com](https://api.myquran.com). Lokasi diatur manual (tanpa GPS) dan jadwal disimpan per bulan.
 
 **Lain-lain**

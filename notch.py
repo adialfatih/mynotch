@@ -100,6 +100,9 @@ SHOLAT_API = "https://api.myquran.com/v3/sholat"
 SHOLAT = [("subuh", "Subuh"), ("dzuhur", "Dzuhur"), ("ashar", "Ashar"),
           ("maghrib", "Maghrib"), ("isya", "Isya")]
 PRAYER_SHOW = 7.0  # detik panel sholat tampil setelah klik 2x
+REMIND_BEFORE = 5  # menit sebelum waktu sholat mulai diingatkan tiap menit
+REMIND_SHOW = 8.0  # detik pengingat "x menit lagi" tampil
+ADZAN_SHOW = 30.0  # detik tulisan "Waktunya sholat" tampil
 
 
 def load_settings():
@@ -146,6 +149,19 @@ def next_prayer(jadwal, now):
             at = datetime(d.year, d.month, d.day, h, m)
             if at > now:
                 return nama, hari[key], at
+    return None
+
+
+def prayer_reminder(jadwal, now):
+    """(nama, 'HH:MM', menit) kalau sholat tinggal <= REMIND_BEFORE menit; menit 0 = sudah masuk."""
+    hari = jadwal.get(now.date().isoformat())
+    if not hari:
+        return None
+    for key, nama in SHOLAT:
+        h, m = map(int, hari[key].split(":"))
+        secs = (datetime(now.year, now.month, now.day, h, m) - now).total_seconds()
+        if -60 < secs <= REMIND_BEFORE * 60:
+            return nama, hari[key], max(0, math.ceil(secs / 60))
     return None
 
 
@@ -226,6 +242,11 @@ class Notch(QWidget):
         self.jadwal = self.settings.get("jadwal", {})
         self.fetching = False
         self.prayer_until = 0.0
+        self.reminder = None       # (baris1, baris2) pengingat sholat yang lagi tampil
+        self.reminded = None       # pengingat terakhir, biar tiap menit cuma sekali
+        self.adzan_until = 0.0     # selama ini notch berdenyut "Waktunya sholat"
+        self.adzan_pulse = 0.0
+        self.next_jadwal_check = 0.0
         self.fullscreen = False
         self.next_slow_check = 0.0
         self.mode = "mouse"
@@ -713,8 +734,42 @@ class Notch(QWidget):
 
     # -------------------------------------------------------------- sholat
     def show_prayer(self, now):
+        self.reminder = None
+        self.adzan_until = 0.0
         self.prayer_until = now + PRAYER_SHOW
         self.ensure_jadwal()
+
+    def check_reminder(self, now):
+        """Ingatkan tiap menit mulai 5 menit sebelum waktu sholat, lalu saat waktunya tiba."""
+        if now >= self.next_jadwal_check:  # notch bisa jalan berhari-hari: jadwal bulan depan
+            self.next_jadwal_check = now + 600
+            self.ensure_jadwal()
+        if self.mode == "prayer" and now < self.adzan_until and now >= self.adzan_pulse:
+            self.adzan_pulse = now + 2.5  # riak berulang selama "Waktunya sholat" tampil
+            self.ripples.append(0.0)
+
+        rem = prayer_reminder(self.jadwal, datetime.now())
+        if not rem:
+            return
+        nama, jam, menit = rem
+        key = (date.today(), nama, menit)
+        if key == self.reminded:
+            return
+        self.reminded = key
+        lokasi = self.settings.get("sholat", {}).get("lokasi", "")
+        if menit:
+            self.reminder = (f"Waktu {nama} {menit} menit lagi", f"pukul {jam} · {lokasi}")
+            self.prayer_until = now + REMIND_SHOW
+            self.shake_until = now + 0.45  # getar
+        else:
+            self.reminder = (f"Waktunya sholat {nama}", f"{jam} · {lokasi}")
+            self.prayer_until = self.adzan_until = now + ADZAN_SHOW
+            self.adzan_pulse = now + 2.5
+            self.happy_until = now + 1.5
+            self.burst()
+        self.startle(now, 0.4)
+        self.ripples.append(0.0)
+        self.py.v += 160
 
     def ensure_jadwal(self):
         """Ambil jadwal bulan ini (dan bulan depan kalau besok ganti bulan) di background."""
@@ -746,6 +801,8 @@ class Notch(QWidget):
             self.fetching = False
 
     def prayer_lines(self):
+        if self.reminder:
+            return self.reminder
         lokasi = self.settings.get("sholat")
         if not lokasi:
             return "Lokasi belum diatur", "klik kanan → Atur lokasi sholat"
@@ -842,6 +899,7 @@ class Notch(QWidget):
             self.fg_rect = self.plat.window_rect(self.fg_win) if self.fg_win else None
             self.place()
             self.plat.keep_on_top()
+            self.check_reminder(now)
 
         rect = self.pill_rect()
         grect = rect.translated(self.x(), self.y())
@@ -868,10 +926,10 @@ class Notch(QWidget):
             mode = "hidden"
         elif self.menu_open:
             mode = "menu"
+        elif now < self.prayer_until:  # pengingat sholat tetap muncul walau notch lagi tidur
+            mode = "prayer"
         elif self.sleeping:
             mode = "sleep"
-        elif now < self.prayer_until:
-            mode = "prayer"
         elif hovering:
             mode = "media" if self.track else "hover"
         elif typing or thinking:
@@ -891,6 +949,9 @@ class Notch(QWidget):
                  "thinking": (310, 40), "prayer": (320, 52), "media": (400, 58),
                  "menu": (MENU_W, MENU_H)}
         self.pw.target, self.ph.target = sizes[mode]
+        if mode == "prayer":  # pengingat lebih panjang dari "Dzuhur  11:52", lebarkan secukupnya
+            text_w = QFontMetrics(self.font_clock).horizontalAdvance(self.prayer_lines()[0])
+            self.pw.target = min(WIN_W - 40, max(self.pw.target, text_w + 116))
         self.alpha.target = 0.0 if mode == "hidden" else 1.0
         self.expand.target = 1.0 if mode in ("hover", "typing", "terminal", "thinking",
                                              "prayer", "media", "menu") else 0.0
