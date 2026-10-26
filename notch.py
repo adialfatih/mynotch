@@ -60,6 +60,7 @@ SLEEP_AFTER = 60.0      # detik tanpa input sebelum tidur
 TYPING_HOLD = 1.4       # berapa lama dianggap "masih ngetik" setelah tombol terakhir
 WIN_W, WIN_H = 560, 250 # kanvas transparan (lebih besar dari pil, buat riak, partikel & menu)
 TOP_GAP = 8
+MENU_EAR = 9            # lengkung cekung di sudut atas saat menu menempel ke tepi layar
 MEDIA_TOAST = 3.5       # detik notifikasi lagu baru tampil
 
 # menu klik kanan: notch memanjang ke bawah jadi panel
@@ -759,7 +760,38 @@ class Notch(QWidget):
     # -------------------------------------------------------------- logika
     def pill_rect(self):
         pw, ph = self.pw.x, self.ph.x
-        return QRectF(WIN_W / 2 - pw / 2, TOP_GAP + self.py.x, pw, ph)
+        top = (TOP_GAP + self.py.x) * (1 - self.attach())
+        return QRectF(WIN_W / 2 - pw / 2, top, pw, ph)
+
+    def attach(self):
+        """0..1: seberapa menempel notch ke tepi atas layar (cuma saat menu terbuka)."""
+        return clamp(self.menuf.x) if self.plat.MENU_FLUSH else 0.0
+
+    def notch_shape(self, rect, radius):
+        """Pil membulat; saat menempel, sudut atas berganti jadi lengkung cekung ke tepi layar."""
+        att = self.attach()
+        path = QPainterPath()
+        if att <= 0:
+            path.addRoundedRect(rect, radius, radius)
+            return path
+        # paruh pertama sudut atas cembung mengecil, paruh kedua lengkung cekung tumbuh
+        rt = radius * max(0.0, 1 - 2 * att)
+        ear = MENU_EAR * max(0.0, 2 * att - 1)
+        sx, d = ear - rt, ear + rt  # salah satunya selalu nol
+        q = 1 - 0.5523  # titik kendali Bézier untuk seperempat lingkaran
+        l, r, t, b = rect.left(), rect.right(), rect.top(), rect.bottom()
+        rb = radius
+        path.moveTo(l - sx, t)
+        path.lineTo(r + sx, t)
+        path.cubicTo(r + sx * q, t, r, t + d * q, r, t + d)
+        path.lineTo(r, b - rb)
+        path.cubicTo(r, b - rb * q, r - rb * q, b, r - rb, b)
+        path.lineTo(l + rb, b)
+        path.cubicTo(l + rb * q, b, l, b - rb * q, l, b - rb)
+        path.lineTo(l, t + d)
+        path.cubicTo(l, t + d * q, l - sx * q, t, l - sx, t)
+        path.closeSubpath()
+        return path
 
     def head_mid(self, rect):
         """Tengah vertikal baris atas (mata & teks); panel menu lebih tinggi dari baris ini."""
@@ -944,11 +976,17 @@ class Notch(QWidget):
             p.setPen(QPen(c, 2.0 * (1 - rt) + 0.6))
             p.drawRoundedRect(rect.adjusted(-g, -g, g, g), radius + g, radius + g)
 
-        path = QPainterPath()
-        path.addRoundedRect(rect, radius, radius)
-        p.setPen(QPen(QColor(255, 255, 255, 26), 1))
+        path = self.notch_shape(rect, radius)
+        p.setPen(Qt.NoPen)
         p.setBrush(QColor(0, 0, 0))
         p.drawPath(path)
+        p.save()
+        if self.attach() > 0:  # tepi atas menyatu dengan layar, gak perlu garis
+            p.setClipRect(QRectF(0, rect.top() + 1.5, WIN_W, WIN_H))
+        p.setPen(QPen(QColor(255, 255, 255, 26), 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(path)
+        p.restore()
 
         p.save()
         p.setClipPath(path)

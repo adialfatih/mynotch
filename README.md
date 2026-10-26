@@ -40,11 +40,11 @@ Butuh **Python 3.10+**.
 
 ```powershell
 git clone https://github.com/adialfatih/mynotch.git
-cd mynotch
-python -m pip install -r requirements.txt
 ```
 
-Lalu dobel klik **`jalankan.bat`** (jalan tanpa jendela console).
+Lalu dobel klik **`install.bat`** di folder `mynotch`. Paket Python dipasang dan notch langsung jalan.
+
+Untuk menjalankan atau me-restart notch tanpa update, dobel klik **`jalankan.bat`** (jalan tanpa jendela console). Kalau notch masih jalan, yang lama otomatis ditutup dulu.
 
 ### Ubuntu
 
@@ -67,10 +67,13 @@ Dibuat untuk Ubuntu 22.04 (GNOME 42), tapi seharusnya jalan di desktop Linux man
 
 ### Update
 
+**Windows:** dobel klik **`install.bat`**. Kode terbaru diambil (`git pull`), paket dipasang, lalu notch di-restart otomatis.
+
+**Ubuntu:**
+
 ```bash
 git pull
-python -m pip install -r requirements.txt   # Windows
-bash install_ubuntu.sh                      # Ubuntu
+bash install_ubuntu.sh
 ```
 
 Lalu tutup notch (klik kanan → **Keluar**) dan jalankan lagi.
@@ -115,7 +118,8 @@ os_windows.py      jendela aktif, keyboard, idle, dll. di Windows (Win32 API)
 os_x11.py          jendela aktif, keyboard, idle, dll. di Linux (X11 / python-xlib)
 media_windows.py   media yang diputar di Windows (Global System Media Transport Controls)
 media_linux.py     media yang diputar di Linux (MPRIS lewat D-Bus)
-jalankan.bat       launcher Windows
+install.bat        instalasi / update Windows (git pull, pasang paket, restart)
+jalankan.bat       launcher Windows (sekalian restart kalau sudah jalan)
 install_ubuntu.sh  instalasi Ubuntu
 jalankan.sh        launcher Ubuntu
 ```

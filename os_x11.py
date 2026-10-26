@@ -36,6 +36,7 @@ MODIFIER_NAMES = ("Shift_L", "Shift_R", "Control_L", "Control_R", "Alt_L", "Alt_
 class Platform:
     FONT = "Ubuntu"
     TERMINALS = TERMINALS
+    MENU_FLUSH = False  # notch di bawah top bar GNOME, biarkan melayang
 
     def __init__(self):
         self.d = display.Display()

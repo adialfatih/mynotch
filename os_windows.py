@@ -112,6 +112,7 @@ def _rect(hwnd):
 class Platform:
     FONT = "Segoe UI"
     TERMINALS = TERMINALS
+    MENU_FLUSH = True  # menu klik kanan menempel ke tepi atas layar
 
     KEY_ENTER, KEY_BACKSPACE, KEY_C = 0x0D, 0x08, 0x43
     CTRL_KEYS = {0xA2, 0xA3}
