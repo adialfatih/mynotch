@@ -1,2 +1,7 @@
 PySide6-Essentials
 python-xlib; sys_platform == "linux"
+jeepney; sys_platform == "linux"
+winrt-runtime; sys_platform == "win32"
+winrt-Windows.Foundation; sys_platform == "win32"
+winrt-Windows.Media.Control; sys_platform == "win32"
+winrt-Windows.Storage.Streams; sys_platform == "win32"

@@ -14,8 +14,10 @@ Perilaku:
   * Hover -> jam. Klik -> seneng. Klik 5x cepet -> pusing. Klik kanan -> menu.
   * Klik 2x -> waktu sholat berikutnya (lokasi diatur manual lewat klik kanan,
     data Kemenag dari api.myquran.com, disimpan per bulan di notch_settings.json).
+  * Ada musik/video main (YouTube, Spotify, ...) -> indikator kecil + mata manggut-manggut;
+    ganti lagu -> notifikasi judul & artis; hover -> panel musik dengan ⏮ ⏯ ⏭.
 
-Bagian yang khusus OS ada di os_windows.py dan os_x11.py.
+Bagian yang khusus OS ada di os_windows.py / os_x11.py dan media_windows.py / media_linux.py.
 
 Jalankan:  Windows -> jalankan.bat   |   Ubuntu -> ./install_ubuntu.sh lalu ./jalankan.sh
 """
@@ -39,9 +41,18 @@ else:
     os.environ.setdefault("QT_QPA_PLATFORM", "xcb")  # X11 API cuma bisa dipakai di jendela X11
     from os_x11 import Platform
 
+try:  # fitur musik opsional: kalau paketnya belum dipasang, notch tetap jalan tanpa musik
+    if sys.platform == "win32":
+        from media_windows import Media
+    else:
+        from media_linux import Media
+except ImportError as exc:
+    print(f"Fitur musik nonaktif: {exc}", file=sys.stderr)
+    Media = None
+
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QPainter,
-                           QPainterPath, QPen, QPolygonF)
+                           QPainterPath, QPen, QPixmap, QPolygonF)
 from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
 # ------------------------------------------------------------------ pengaturan
@@ -49,7 +60,8 @@ SLEEP_AFTER = 60.0      # detik tanpa input sebelum tidur
 TYPING_HOLD = 1.4       # berapa lama dianggap "masih ngetik" setelah tombol terakhir
 WIN_W, WIN_H = 560, 160 # kanvas transparan (lebih besar dari pil, buat riak & partikel)
 TOP_GAP = 8
-HIT_REGION = (WIN_W // 2 - 170, 0, 340, TOP_GAP + 64)  # area klik saat hover (X11)
+HIT_REGION = (WIN_W // 2 - 215, 0, 430, TOP_GAP + 70)  # area klik saat hover (X11)
+MEDIA_TOAST = 3.5       # detik notifikasi lagu baru tampil
 
 CLAUDE_GLYPHS = "✳✻✽✶✢"
 
@@ -59,6 +71,7 @@ COL_CLAUDE = (217, 119, 87)
 COL_CODEX = (110, 190, 255)
 COL_SLEEP = (120, 120, 135)
 COL_SHOLAT = (110, 215, 190)
+COL_MEDIA = (250, 130, 180)
 CONFETTI = [(255, 120, 160), (255, 210, 90), (120, 220, 255), (160, 255, 150)]
 
 HARI = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]
@@ -177,9 +190,10 @@ class Notch(QWidget):
         self.happy = Spring(0, 200, 0.9)
         self.lid = Spring(0, 200, 0.9)
         self.sleepf = Spring(0, 90, 1.0)
+        self.musicf = Spring(0, 160, 0.9)
         self.alpha = Spring(0, 120, 1.0)
         self.springs = [self.pw, self.ph, self.py, self.expand, self.look_x, self.look_y,
-                        self.open, self.happy, self.lid, self.sleepf, self.alpha]
+                        self.open, self.happy, self.lid, self.sleepf, self.musicf, self.alpha]
         self.color = list(COL_MOUSE)
 
         now = time.perf_counter()
@@ -225,6 +239,21 @@ class Notch(QWidget):
         self.clicks = []
         self.ripples = []
         self.particles = []
+
+        self.media = None
+        if Media:
+            try:
+                self.media = Media()
+            except Exception as exc:
+                print(f"Fitur musik nonaktif: {exc}", file=sys.stderr)
+        self.track = None
+        self.track_key = None
+        self.toast_until = 0.0
+        self.bobbing = False
+        self.art_pixmap = None
+        self.art_key = None
+        self.btn_pressed = None
+        self.btn_pressed_at = -99.0
 
         self.font_label = QFont(plat.FONT, 9, QFont.DemiBold)
         self.font_clock = QFont(plat.FONT, 13, QFont.Bold)
@@ -333,6 +362,10 @@ class Notch(QWidget):
             return
         if e.button() != Qt.LeftButton:
             return
+        action = self.media_button_at(e.position())
+        if action:
+            self.press_media(action, now)
+            return
         if not self.register_click(now):
             self.happy_until = now + 1.1
         self.py.v += 160
@@ -342,10 +375,64 @@ class Notch(QWidget):
         if e.button() != Qt.LeftButton:
             return
         now = time.perf_counter()
+        action = self.media_button_at(e.position())
+        if action:  # klik cepat beruntun di tombol = tekan tombol lagi
+            self.press_media(action, now)
+            return
         if self.register_click(now):
             return
         self.py.v += 120
         self.show_prayer(now)
+
+    # -------------------------------------------------------------- musik
+    def media_buttons(self, rect):
+        """[(aksi, titik tengah)] tombol ⏮ ⏯ ⏭ di sisi kanan panel musik."""
+        mid = rect.center().y()
+        return [(action, QPointF(rect.right() - 31 - (2 - i) * 30, mid))
+                for i, action in enumerate(("prev", "playpause", "next"))]
+
+    def media_button_at(self, pos):
+        if self.mode != "media" or not self.track or not self.media:
+            return None
+        for action, c in self.media_buttons(self.pill_rect()):
+            if math.hypot(pos.x() - c.x(), pos.y() - c.y()) <= 15:
+                return action
+        return None
+
+    def press_media(self, action, now):
+        self.media.send(action)
+        self.btn_pressed, self.btn_pressed_at = action, now
+        if action != "playpause":  # lirik ke arah tombol yang ditekan
+            self.look_x.v += 9 if action == "next" else -9
+
+    def update_track(self, now):
+        info = self.media.info if self.media else None
+        self.track = info
+        if not info:
+            return
+        key = (info["title"], info["artist"])
+        if key != self.track_key:
+            self.track_key = key
+            if info["playing"]:
+                self.toast_until = now + MEDIA_TOAST
+        if info["art_key"] != self.art_key:
+            self.art_key = info["art_key"]
+            self.art_pixmap = None
+            pix = QPixmap()
+            if info["art"] and pix.loadFromData(info["art"]):
+                side = min(pix.width(), pix.height())  # potong tengah jadi persegi (thumbnail YouTube 16:9)
+                pix = pix.copy((pix.width() - side) // 2, (pix.height() - side) // 2, side, side)
+                self.art_pixmap = pix.scaled(96, 96, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+
+    def track_progress(self):
+        info = self.track
+        if not info or info["duration"] <= 0:
+            return None
+        pos = info["position"]
+        elapsed = time.time() - info["stamp"]
+        if info["playing"] and 0 <= elapsed < 6 * 3600:
+            pos += elapsed
+        return clamp(pos / info["duration"])
 
     def burst(self):
         rect = self.pill_rect()
@@ -473,7 +560,7 @@ class Notch(QWidget):
 
     def eye_anchor(self, rect):
         cx = lerp(rect.center().x(), rect.left() + 46, clamp(self.expand.x))
-        return cx - self.sleepf.x * 14, rect.center().y()
+        return cx - self.sleepf.x * 14 - self.musicf.x * 16, rect.center().y()
 
     def look_at(self, gx, gy, rect):
         ex, ey = self.eye_anchor(rect)
@@ -502,6 +589,8 @@ class Notch(QWidget):
             self.poll_keys(now)
         else:
             self.kb_prev = None
+        self.update_track(now)
+        playing = bool(self.track and self.track["playing"])
 
         was_sleeping = self.sleeping
         self.sleeping = self.plat.idle_seconds() > SLEEP_AFTER
@@ -538,24 +627,31 @@ class Notch(QWidget):
         elif now < self.prayer_until:
             mode = "prayer"
         elif hovering:
-            mode = "hover"
+            mode = "media" if self.track else "hover"
+        elif typing or thinking:
+            mode = "thinking" if thinking else "typing"
+        elif now < self.toast_until and self.track:
+            mode = "media"
         elif self.in_terminal:
-            mode = "thinking" if thinking else "typing" if typing else "terminal"
+            mode = "terminal"
         else:
             mode = "mouse"
         self.mode = mode
+        self.bobbing = playing and mode not in ("sleep", "typing", "hidden")
 
         # ---- target bentuk & ekspresi
-        sizes = {"mouse": (160, 34), "hidden": (160, 34), "sleep": (150, 32),
+        sizes = {"mouse": (190 if playing else 160, 34), "hidden": (160, 34), "sleep": (150, 32),
                  "hover": (270, 44), "typing": (310, 40), "terminal": (310, 40),
-                 "thinking": (310, 40), "prayer": (320, 52)}
+                 "thinking": (310, 40), "prayer": (320, 52), "media": (400, 58)}
         self.pw.target, self.ph.target = sizes[mode]
         self.alpha.target = 0.0 if mode == "hidden" else 1.0
         self.expand.target = 1.0 if mode in ("hover", "typing", "terminal", "thinking",
-                                             "prayer") else 0.0
+                                             "prayer", "media") else 0.0
         self.sleepf.target = 1.0 if mode == "sleep" else 0.0
+        self.musicf.target = 1.0 if playing and mode == "mouse" else 0.0
         self.lid.target = 0.25 if mode == "typing" else 0.0
-        self.happy.target = 1.0 if now < self.happy_until or mode in ("hover", "prayer") else 0.0
+        self.happy.target = 1.0 if now < self.happy_until or mode in ("hover", "prayer",
+                                                                      "media") else 0.0
         if mode == "sleep":
             self.open.target = 0.1
         else:
@@ -592,7 +688,8 @@ class Notch(QWidget):
         # ---- integrasi
         for s in self.springs:
             s.step(dt)
-        target_col = {"sleep": COL_SLEEP, "prayer": COL_SHOLAT}.get(mode) or self.context_color()
+        target_col = ({"sleep": COL_SLEEP, "prayer": COL_SHOLAT, "media": COL_MEDIA}.get(mode)
+                      or self.context_color())
         k = 1 - math.exp(-dt * 6)
         self.color = [lerp(c, tc, k) for c, tc in zip(self.color, target_col)]
         decay = math.exp(-dt * 5)
@@ -650,7 +747,7 @@ class Notch(QWidget):
     def paint_eyes(self, p, rect, col):
         now = time.perf_counter()
         t = now - self.t0
-        s = rect.height() / 36
+        s = min(rect.height(), 44) / 36  # di panel tinggi (sholat/musik) mata gak ikut membesar
         cx, cy = self.eye_anchor(rect)
         lx, ly = self.look_x.x, self.look_y.x
         shake = math.sin(t * 60) * 2.4 * s if now < self.shake_until else 0.0
@@ -663,6 +760,8 @@ class Notch(QWidget):
             eh = 17 * s * persp * openness
             ex = cx + side * 14 * s + lx * 7 * s + shake
             ey = cy + ly * 5 * s
+            if self.bobbing:  # manggut-manggut ikut musik
+                ey += math.sin(t * 11) * 1.4 * s
 
             if now < self.dizzy_until:
                 p.save()
@@ -713,7 +812,9 @@ class Notch(QWidget):
             x0, x1 = rect.left() + 92, rect.right() - 16
             area = QRectF(x0, rect.top(), max(0.0, x1 - x0), rect.height())
 
-            if self.mode == "prayer":
+            if self.mode == "media" and self.track:
+                self.paint_media(p, rect)
+            elif self.mode == "prayer":
                 line1, line2 = self.prayer_lines()
                 p.setFont(self.font_clock)
                 p.setPen(QColor(245, 245, 250))
@@ -745,7 +846,7 @@ class Notch(QWidget):
                 elif self.mode == "typing":
                     label = ""
                 else:
-                    label = name
+                    label = f"{name}  ♪" if self.track and self.track["playing"] else name
 
                 right_w = 0
                 p.setPen(Qt.NoPen)
@@ -772,6 +873,16 @@ class Notch(QWidget):
                            Qt.AlignVCenter | Qt.AlignLeft, text)
             p.setOpacity(a)
 
+        mf = self.musicf.x
+        if mf > 0.02:  # indikator kecil "lagi ada musik" di notch mode ringkas
+            mc = QColor(*COL_MEDIA)
+            mc.setAlphaF(clamp(mf))
+            p.setPen(Qt.NoPen)
+            p.setBrush(mc)
+            for i in range(4):
+                h = 3 + (0.5 + 0.5 * math.sin(t * (7 + i * 1.7) + i * 1.3)) * 9
+                p.drawRoundedRect(QRectF(rect.right() - 36 + i * 5, mid - h / 2, 2.6, h), 1.3, 1.3)
+
         sf = self.sleepf.x
         if sf > 0.02:
             for k in range(3):
@@ -784,6 +895,78 @@ class Notch(QWidget):
                 p.setPen(zc)
                 p.drawText(QPointF(rect.right() - 40 + ph * 16,
                                    rect.bottom() - 6 - ph * (rect.height() - 12)), "z")
+
+
+    def paint_media(self, p, rect):
+        info = self.track
+        now = time.perf_counter()
+        mid = rect.center().y()
+
+        cover = QRectF(rect.left() + 86, mid - 20, 40, 40)
+        clip = QPainterPath()
+        clip.addRoundedRect(cover, 8, 8)
+        if self.art_pixmap:
+            p.save()
+            p.setClipPath(clip, Qt.IntersectClip)
+            p.setRenderHint(QPainter.SmoothPixmapTransform)
+            p.drawPixmap(cover, self.art_pixmap, QRectF(self.art_pixmap.rect()))
+            p.restore()
+        else:
+            p.fillPath(clip, QColor(40, 40, 46))
+            p.setPen(QColor(*COL_MEDIA))
+            p.setFont(self.font_clock)
+            p.drawText(cover, Qt.AlignCenter, "♪")
+
+        buttons = self.media_buttons(rect)
+        x0 = cover.right() + 10
+        text_w = max(0.0, buttons[0][1].x() - 20 - x0)
+        p.setFont(self.font_label)
+        p.setPen(QColor(245, 245, 250))
+        p.drawText(QRectF(x0, rect.top() + 10, text_w, 18), Qt.AlignVCenter | Qt.AlignLeft,
+                   QFontMetrics(self.font_label).elidedText(info["title"], Qt.ElideRight, int(text_w)))
+        p.setFont(self.font_small)
+        p.setPen(QColor(150, 150, 160))
+        p.drawText(QRectF(x0, rect.top() + 27, text_w, 16), Qt.AlignVCenter | Qt.AlignLeft,
+                   QFontMetrics(self.font_small).elidedText(info["artist"], Qt.ElideRight, int(text_w)))
+
+        progress = self.track_progress()
+        if progress is not None:
+            bar = QRectF(x0, rect.top() + 46, text_w, 2.5)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(255, 255, 255, 40))
+            p.drawRoundedRect(bar, 1.2, 1.2)
+            p.setBrush(QColor(*COL_MEDIA))
+            p.drawRoundedRect(QRectF(bar.left(), bar.top(), bar.width() * progress, bar.height()),
+                              1.2, 1.2)
+
+        cur = self.mapFromGlobal(QCursor.pos())
+        for action, c in buttons:
+            pressed = action == self.btn_pressed and now - self.btn_pressed_at < 0.18
+            if math.hypot(cur.x() - c.x(), cur.y() - c.y()) <= 15:
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor(255, 255, 255, 45 if pressed else 28))
+                p.drawEllipse(c, 14, 14)
+            icon = "pause" if action == "playpause" and info["playing"] else \
+                "play" if action == "playpause" else action
+            self.paint_icon(p, icon, c, 0.8 if pressed else 1.0)
+
+    def paint_icon(self, p, icon, c, scale):
+        p.save()
+        p.translate(c)
+        p.scale(scale, scale)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(245, 245, 250))
+        if icon == "play":
+            p.drawPolygon(QPolygonF([QPointF(-4, -6.5), QPointF(-4, 6.5), QPointF(7, 0)]))
+        elif icon == "pause":
+            p.drawRoundedRect(QRectF(-5.5, -6.5, 4, 13), 1.2, 1.2)
+            p.drawRoundedRect(QRectF(1.5, -6.5, 4, 13), 1.2, 1.2)
+        else:  # next; prev = next dicerminkan
+            if icon == "prev":
+                p.scale(-1, 1)
+            p.drawPolygon(QPolygonF([QPointF(-6, -5.5), QPointF(-6, 5.5), QPointF(2.5, 0)]))
+            p.drawRoundedRect(QRectF(3.5, -5.5, 2.4, 11), 1, 1)
+        p.restore()
 
 
 def main():
