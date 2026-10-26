@@ -37,6 +37,7 @@ class Platform:
     FONT = "Ubuntu"
     TERMINALS = TERMINALS
     MENU_FLUSH = False  # notch di bawah top bar GNOME, biarkan melayang
+    TYPE_ANYWHERE = False  # efek ngetik cuma di terminal
 
     def __init__(self):
         self.d = display.Display()

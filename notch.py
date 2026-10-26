@@ -374,6 +374,8 @@ class Notch(QWidget):
                 self.on_key(key, ctrl, now)
 
     def on_key(self, key, ctrl, now):
+        if not self.in_terminal and (ctrl or key not in self.plat.TEXT_KEYS):
+            return  # di luar terminal: shortcut (Ctrl+C = copy) & tombol navigasi bukan ngetik
         self.last_key = now
         self.ph.v += 45
         if ctrl and key == self.plat.KEY_C:
@@ -881,7 +883,8 @@ class Notch(QWidget):
             self.last_mouse_move = now
 
         self.update_foreground(now)
-        if self.in_terminal and not self.menu_open:
+        watch_keys = self.in_terminal or self.plat.TYPE_ANYWHERE
+        if watch_keys and not self.menu_open:
             self.poll_keys(now)
         else:
             self.kb_prev = None
@@ -917,7 +920,7 @@ class Notch(QWidget):
             if math.hypot(cur.x() - self.x() - ex, cur.y() - self.y() - ey) < 260:
                 self.startle(now, 0.5)
 
-        typing = self.in_terminal and now - self.last_key < TYPING_HOLD
+        typing = watch_keys and now - self.last_key < TYPING_HOLD
         while self.title_changes and now - self.title_changes[0] > 2.5:
             self.title_changes.popleft()
         thinking = self.in_terminal and not typing and len(self.title_changes) >= 3

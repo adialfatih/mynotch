@@ -118,6 +118,11 @@ class Platform:
     CTRL_KEYS = {0xA2, 0xA3}
     MODIFIER_KEYS = {0x14, 0x5B, 0x5C, 0x5D, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5}
     WATCHED_KEYS = [vk for vk in range(0x08, 0xFF) if vk not in (0x10, 0x11, 0x12)]
+    # efek ngetik juga di luar terminal (Notepad, Word, Excel, browser, dll.),
+    # tapi cuma tombol yang menghasilkan teks: huruf, angka, spasi, tanda baca, Enter, Backspace
+    TYPE_ANYWHERE = True
+    TEXT_KEYS = ({0x08, 0x0D, 0x20, 0xE2} | set(range(0x30, 0x3A)) | set(range(0x41, 0x5B))
+                 | set(range(0x60, 0x70)) | set(range(0xBA, 0xC1)) | set(range(0xDB, 0xE0)))
 
     def __init__(self):
         self.hwnd = 0

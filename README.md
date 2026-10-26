@@ -8,6 +8,7 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 - Di luar terminal, matanya mengikuti kursor mouse. Kalau mouse diam, dia melirik-lirik sendiri.
 - Mouse digerakkan cepat di dekat notch: kaget.
 - Tidak ada input selama 60 detik: tidur (z z z).
+- **Windows:** saat mengetik di aplikasi apa pun (Notepad, Word, Excel, browser, dll.), matanya fokus ke bawah dan bar equalizer ikut bergerak, sama seperti di terminal. Shortcut (Ctrl+C, Ctrl+V, dll.) dan tombol navigasi (panah, Page Down) tidak dihitung mengetik.
 
 **Mode terminal** (Windows Terminal, PowerShell, CMD, gnome-terminal, Kitty, Alacritty, WezTerm, Tilix, Konsole, dll.)
 - Notch melebar. Warnanya oranye untuk Claude Code, biru untuk Codex, hijau untuk terminal biasa.
@@ -31,7 +32,7 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 - Disembunyikan otomatis saat ada aplikasi fullscreen (game, video). Bisa dimatikan.
 - Area di sekitar notch tembus klik, dan notch tidak mengambil fokus dari aplikasi yang sedang aktif.
 
-> **Privasi:** notch hanya mendeteksi *ada* tombol yang ditekan (dan jenisnya: Enter, Backspace, Ctrl+C) saat terminal aktif. Isi ketikan tidak pernah dibaca atau disimpan.
+> **Privasi:** notch hanya mendeteksi *ada* tombol yang ditekan (dan jenisnya: Enter, Backspace, Ctrl+C) saat terminal aktif, dan di Windows juga saat mengetik di aplikasi lain. Isi ketikan tidak pernah dibaca atau disimpan.
 
 ## Instalasi
 
