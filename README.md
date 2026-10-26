@@ -8,12 +8,16 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 - Di luar terminal, matanya mengikuti kursor mouse. Kalau mouse diam, dia melirik-lirik sendiri.
 - Mouse digerakkan cepat di dekat notch: kaget.
 - Tidak ada input selama 60 detik: tidur (z z z).
-- **Efek mengetik** juga bisa aktif di luar terminal: Word, Excel, Notepad, browser, dan VS Code (di Ubuntu: LibreOffice Writer, LibreOffice Calc, Text Editor, browser, VS Code). Matanya fokus ke bawah dan bar equalizer ikut bergerak. Nyalakan/matikan per aplikasi lewat menu **Efek mengetik**. Shortcut (Ctrl+C, Ctrl+V, dll.) dan tombol navigasi (panah, Page Down) tidak dihitung mengetik.
+
+**Efek mengetik**
+- Saat mengetik, matanya fokus ke bawah dan bar equalizer ikut bergerak. **Enter**: riak. **Backspace**: geleng-geleng.
+- Aktif di terminal, Microsoft Word, Microsoft Excel, Notepad, browser, dan VS Code. Di Ubuntu, Word/Excel/Notepad diganti LibreOffice Writer, LibreOffice Calc, dan Text Editor.
+- Bisa dinyalakan/dimatikan per aplikasi lewat menu **Efek mengetik**. Bawaan Windows: semua nyala. Bawaan Ubuntu: hanya Terminal dan VS Code.
+- Di luar terminal, shortcut (Ctrl+C, Ctrl+V, dll.) dan tombol navigasi (panah, Page Down, F1–F12) tidak dihitung mengetik. Aplikasi di luar daftar tidak memicu efek ini.
 
 **Mode terminal** (Windows Terminal, PowerShell, CMD, gnome-terminal, Kitty, Alacritty, WezTerm, Tilix, Konsole, dll.)
 - Notch melebar. Warnanya oranye untuk Claude Code, biru untuk Codex, hijau untuk terminal biasa.
-- Saat mengetik, matanya fokus ke bawah dan ada bar equalizer yang ikut bergerak.
-- **Enter**: riak + "terkirim ✓". **Backspace**: geleng-geleng. **Ctrl+C**: kaget.
+- **Enter**: "terkirim ✓". **Ctrl+C**: kaget.
 - Saat Claude Code atau Codex sedang bekerja: "Claude lagi mikir •••".
 
 **Musik & video** (YouTube di browser, YouTube Music, Spotify, dll.)
@@ -23,7 +27,7 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 
 **Jadwal sholat**
 - Klik 2x notch untuk melihat waktu sholat berikutnya dan berapa lama lagi.
-- Pengingat otomatis: mulai 5 menit sebelum waktu sholat, notch bergetar dan muncul "Waktu Dzuhur 5 menit lagi", lalu 4, 3, 2, 1 menit lagi. Saat waktunya tiba: "Waktunya sholat Dzuhur" + konfeti, dan notch berdenyut selama 30 detik.
+- Pengingat otomatis: mulai 5 menit sebelum waktu sholat, notch bergetar dan muncul "Waktu Dzuhur 5 menit lagi", lalu 4, 3, 2, 1 menit lagi. Saat waktunya tiba: "Waktunya sholat Dzuhur" + konfeti, dan notch berdenyut selama 30 detik. Pengingat tetap muncul walau notch sedang tidur.
 - Data resmi Kemenag per kabupaten/kota dari [api.myquran.com](https://api.myquran.com). Lokasi diatur manual (tanpa GPS) dan jadwal disimpan per bulan.
 
 **Lain-lain**
@@ -71,6 +75,8 @@ Dibuat untuk Ubuntu 22.04 (GNOME 42), tapi seharusnya jalan di desktop Linux man
 
 **Windows:** dobel klik **`install.bat`**. Kode terbaru diambil (`git pull`), paket dipasang, lalu notch di-restart otomatis.
 
+> Kalau di folder kamu belum ada `install.bat` (hasil clone versi lama), jalankan `git pull` sekali dulu, lalu dobel klik `install.bat`.
+
 **Ubuntu:**
 
 ```bash
@@ -91,10 +97,10 @@ Lalu tutup notch (klik kanan → **Keluar**) dan jalankan lagi.
 | Klik ⏮ ⏯ ⏭ (di panel musik) | Kontrol media |
 | Klik kanan | Menu |
 
-**Menu klik kanan** (notch memanjang ke bawah jadi panel pengaturan; tutup dengan klik di luar, klik kanan lagi, atau gerakkan kursor menjauh):
-- **Sembunyi kalau ada app fullscreen**
+**Menu klik kanan**: notch memanjang ke bawah jadi panel pengaturan. Di Windows, panelnya naik menempel ke tepi atas layar dengan lengkung kecil di sudut atas, ala notch MacBook. Tutup dengan klik di luar, klik kanan lagi, atau gerakkan kursor menjauh.
+- **Sembunyi saat ada app fullscreen**
 - **Jalan otomatis saat komputer nyala**: Windows lewat folder Startup, Ubuntu lewat `~/.config/autostart`
-- **Efek mengetik**: menu bergeser ke daftar saklar per aplikasi (Terminal, Microsoft Word, Microsoft Excel, Notepad, Browser, VS Code). Bawaan Windows: semua nyala. Bawaan Ubuntu: hanya Terminal dan VS Code. Aplikasi di luar daftar tidak memicu efek mengetik.
+- **Efek mengetik**: menu bergeser ke daftar saklar per aplikasi (lihat [Efek mengetik](#fitur)). Ringkasannya tampil di sebelah kanan: "Semua", "4 aplikasi", atau "Mati". **Kembali** untuk ke menu utama.
 - **Lokasi sholat**: menu bergeser ke halaman lokasi di dalam notch. Ketik nama kota/kabupaten (misalnya `pekalongan`), pilih Kab./Kota yang benar (klik atau ↑ ↓), lalu **Simpan** atau Enter. Esc / **Batal** untuk kembali.
 - **Keluar**
 
@@ -112,6 +118,9 @@ Pengaturan disimpan di `notch_settings.json` (tidak ikut di-commit).
 - **Ubuntu: notch tidak muncul.** Lihat `notch.log` di folder repo. Error `Could not load the Qt platform plugin "xcb"` berarti paket sistem belum lengkap, jalankan ulang `bash install_ubuntu.sh`.
 - **Notch tidak bereaksi saat di terminal (Ubuntu).** Pastikan sesinya Xorg, bukan Wayland.
 - **Jadwal sholat "Gagal ambil jadwal".** Cek koneksi internet, lalu klik 2x lagi.
+- **Pengingat sholat tidak muncul.** Pastikan lokasi sholat sudah diatur. Pengingat juga tidak tampil saat ada aplikasi fullscreen (kalau opsi sembunyi nyala) atau saat menu klik kanan terbuka.
+- **Windows: setelah update tampilannya masih versi lama.** Notch lama masih jalan. Dobel klik `jalankan.bat` (atau `install.bat`) supaya notch lama ditutup dan yang baru dijalankan.
+- **Efek mengetik tidak muncul di suatu aplikasi.** Cek saklarnya di menu **Efek mengetik**. Aplikasi yang tidak ada di daftar memang tidak memicu efek ini.
 
 ## Struktur
 
