@@ -23,7 +23,7 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 **Musik & video** (YouTube di browser, YouTube Music, Spotify, dll.)
 - Saat media diputar, muncul indikator kecil dan matanya manggut-manggut.
 - Ganti lagu: notifikasi judul dan artis beberapa detik.
-- Hover ke notch: panel musik berisi cover, judul, artis, progress bar, dan tombol ⏮ ⏯ ⏭.
+- Hover ke notch: panel musik berisi cover, judul, artis, dan progress bar; tombol ⏮ ⏯ ⏭ menetes keluar dari bawah notch.
 
 **Jadwal sholat**
 - Klik 2x notch untuk melihat waktu sholat berikutnya dan berapa lama lagi.
@@ -94,7 +94,7 @@ Lalu tutup notch (klik kanan → **Keluar**) dan jalankan lagi.
 | Klik | Senang + konfeti |
 | Klik 2x | Waktu sholat berikutnya |
 | Klik 5x cepat | Pusing |
-| Klik ⏮ ⏯ ⏭ (di panel musik) | Kontrol media |
+| Klik ⏮ ⏯ ⏭ (di bawah panel musik) | Kontrol media |
 | Klik kanan | Menu |
 
 **Menu klik kanan**: notch memanjang ke bawah jadi panel pengaturan. Di Windows, panelnya naik menempel ke tepi atas layar dengan lengkung kecil di sudut atas, ala notch MacBook. Tutup dengan klik di luar, klik kanan lagi, atau gerakkan kursor menjauh.

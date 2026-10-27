@@ -15,7 +15,7 @@ Perilaku:
   * Klik 2x -> waktu sholat berikutnya (lokasi diatur manual lewat klik kanan,
     data Kemenag dari api.myquran.com, disimpan per bulan di notch_settings.json).
   * Ada musik/video main (YouTube, Spotify, ...) -> indikator kecil + mata manggut-manggut;
-    ganti lagu -> notifikasi judul & artis; hover -> panel musik dengan ⏮ ⏯ ⏭.
+    ganti lagu -> notifikasi judul & artis; hover -> panel musik, tombol ⏮ ⏯ ⏭ menetes di bawahnya.
 
 Bagian yang khusus OS ada di os_windows.py / os_x11.py dan media_windows.py / media_linux.py.
 
@@ -74,8 +74,11 @@ KETIK_ROW = 29          # baris saklar di halaman "Mengetik" (6 aplikasi harus m
 MENU_LINGER = 0.8      # detik menu bertahan setelah kursor keluar
 LOC_SEARCH_DELAY = 0.45 # detik jeda setelah berhenti ngetik sebelum cari kota
 ROW_MAX_H = 58          # tinggi baris atas di mode lain (panel musik)
+MEDIA_H = 58
+DROP_W, DROP_H = 112, 30  # "tetesan" tombol musik yang turun dari bawah notch
+DROP_EAR = 10           # lengkung cekung tempat tetesan menyatu dengan notch
 
-HIT_REGION = (WIN_W // 2 - 215, 0, 430, TOP_GAP + 70)  # area klik saat hover (X11)
+HIT_REGION = (WIN_W // 2 - 215, 0, 430, TOP_GAP + MEDIA_H + DROP_H + 16)  # area klik saat hover (X11)
 MENU_HIT_REGION = (WIN_W // 2 - MENU_W // 2 - 10, 0, MENU_W + 20, TOP_GAP + MENU_H + 24)
 
 CLAUDE_GLYPHS = "✳✻✽✶✢"
@@ -231,9 +234,11 @@ class Notch(QWidget):
         self.sw_fs = Spring(0, 320, 0.6)
         self.sw_auto = Spring(0, 320, 0.6)
         self.page = Spring(0, 200, 0.85)  # 0 = daftar menu, 1 = halaman self.sub
+        self.dropf = Spring(0, 190, 0.42)  # redaman kecil -> molor & mantul kayak cairan
         self.springs = [self.pw, self.ph, self.py, self.expand, self.look_x, self.look_y,
                         self.open, self.happy, self.lid, self.sleepf, self.musicf, self.alpha,
-                        self.menuf, self.hl_y, self.hl_a, self.sw_fs, self.sw_auto, self.page]
+                        self.menuf, self.hl_y, self.hl_a, self.sw_fs, self.sw_auto, self.page,
+                        self.dropf]
         self.color = list(COL_MOUSE)
 
         now = time.perf_counter()
@@ -464,16 +469,17 @@ class Notch(QWidget):
 
     # -------------------------------------------------------------- musik
     def media_buttons(self, rect):
-        """[(aksi, titik tengah)] tombol ⏮ ⏯ ⏭ di sisi kanan panel musik."""
-        mid = self.head_mid(rect)
-        return [(action, QPointF(rect.right() - 31 - (2 - i) * 30, mid))
+        """[(aksi, titik tengah)] tombol ⏮ ⏯ ⏭ berjajar di tetesan bawah notch."""
+        drop = self.drop_rect(rect)
+        cy = drop.top() + max(drop.height(), 0.0) / 2
+        return [(action, QPointF(drop.center().x() + (i - 1) * 32, cy))
                 for i, action in enumerate(("prev", "playpause", "next"))]
 
     def media_button_at(self, pos):
-        if self.mode != "media" or not self.track or not self.media:
+        if self.mode != "media" or not self.track or not self.media or self.dropf.x < 0.6:
             return None
         for action, c in self.media_buttons(self.pill_rect()):
-            if math.hypot(pos.x() - c.x(), pos.y() - c.y()) <= 15:
+            if math.hypot(pos.x() - c.x(), pos.y() - c.y()) <= 14:
                 return action
         return None
 
@@ -890,6 +896,36 @@ class Notch(QWidget):
         path.closeSubpath()
         return path
 
+    def drop_rect(self, rect):
+        """Tetesan di bawah notch; pegas yang lewat 1 bikin molor sebentar, lalu mantul balik."""
+        f = max(0.0, self.dropf.x)
+        w = DROP_W * (0.45 + 0.55 * clamp(f))  # mulai ramping, lalu melebar
+        return QRectF(rect.center().x() - w / 2, rect.bottom(), w, DROP_H * f)
+
+    def drop_shape(self, rect):
+        """Tetesan + lengkung cekung yang menyambungkannya mulus ke bawah notch (None kalau belum ada)."""
+        drop = self.drop_rect(rect)
+        h = drop.height()
+        if h < 0.5:
+            return None
+        e = min(DROP_EAR * clamp(self.dropf.x), h)
+        rr = min(13.0, drop.width() / 2, max(0.0, h - e))
+        q = 1 - 0.5523
+        l, r, t, b = drop.left(), drop.right(), drop.top(), drop.bottom()
+        path = QPainterPath()
+        path.moveTo(l - e, t - 2)  # sedikit masuk ke notch supaya sambungannya gak berceleh
+        path.lineTo(r + e, t - 2)
+        path.lineTo(r + e, t)
+        path.cubicTo(r + e * q, t, r, t + e * q, r, t + e)
+        path.lineTo(r, b - rr)
+        path.cubicTo(r, b - rr * q, r - rr * q, b, r - rr, b)
+        path.lineTo(l + rr, b)
+        path.cubicTo(l + rr * q, b, l, b - rr * q, l, b - rr)
+        path.lineTo(l, t + e)
+        path.cubicTo(l, t + e * q, l - e * q, t, l - e, t)
+        path.closeSubpath()
+        return path
+
     def head_mid(self, rect):
         """Tengah vertikal baris atas (mata & teks); panel menu lebih tinggi dari baris ini."""
         return rect.top() + lerp(min(rect.height(), ROW_MAX_H), MENU_HEAD, clamp(self.menuf.x)) / 2
@@ -943,8 +979,9 @@ class Notch(QWidget):
             self.check_reminder(now)
 
         rect = self.pill_rect()
-        grect = rect.translated(self.x(), self.y())
-        hovering = self.alpha.x > 0.5 and grect.adjusted(-6, -6, 6, 6).contains(QPointF(cur))
+        hrect = rect.united(self.drop_rect(rect)) if self.dropf.x > 0.05 else rect
+        grect = hrect.translated(self.x(), self.y())
+        hovering =self.alpha.x > 0.5 and grect.adjusted(-6, -6, 6, 6).contains(QPointF(cur))
         if self.menu_open and self.fullscreen:
             self.close_menu()
         if self.menu_open:
@@ -987,7 +1024,7 @@ class Notch(QWidget):
         # ---- target bentuk & ekspresi
         sizes = {"mouse": (190 if playing else 160, 34), "hidden": (160, 34), "sleep": (150, 32),
                  "hover": (270, 44), "typing": (310, 40), "terminal": (310, 40),
-                 "thinking": (310, 40), "prayer": (320, 52), "media": (400, 58),
+                 "thinking": (310, 40), "prayer": (320, 52), "media": (340, MEDIA_H),
                  "menu": (MENU_W, MENU_H)}
         self.pw.target, self.ph.target = sizes[mode]
         if mode == "prayer":  # pengingat lebih panjang dari "Dzuhur  11:52", lebarkan secukupnya
@@ -997,6 +1034,7 @@ class Notch(QWidget):
         self.expand.target = 1.0 if mode in ("hover", "typing", "terminal", "thinking",
                                              "prayer", "media", "menu") else 0.0
         self.menuf.target = 1.0 if mode == "menu" else 0.0
+        self.dropf.target = 1.0 if mode == "media" and hovering else 0.0
         self.sleepf.target = 1.0 if mode == "sleep" else 0.0
         self.musicf.target = 1.0 if playing and mode == "mouse" else 0.0
         loc_typing = self.loc_editing and bool(self.loc_text) and now - self.loc_key_at < TYPING_HOLD
@@ -1079,6 +1117,9 @@ class Notch(QWidget):
             p.drawRoundedRect(rect.adjusted(-g, -g, g, g), radius + g, radius + g)
 
         path = self.notch_shape(rect, radius)
+        drop = self.drop_shape(rect)
+        if drop:  # satu bentuk utuh, jadi garis tepinya ikut menyatu
+            path = path.united(drop)
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(0, 0, 0))
         p.drawPath(path)
@@ -1533,9 +1574,8 @@ class Notch(QWidget):
             p.setFont(self.font_clock)
             p.drawText(cover, Qt.AlignCenter, "♪")
 
-        buttons = self.media_buttons(rect)
         x0 = cover.right() + 10
-        text_w = max(0.0, buttons[0][1].x() - 20 - x0)
+        text_w = max(0.0, rect.right() - 18 - x0)
         p.setFont(self.font_label)
         p.setPen(QColor(245, 245, 250))
         p.drawText(QRectF(x0, rect.top() + 10, text_w, 18), Qt.AlignVCenter | Qt.AlignLeft,
@@ -1555,16 +1595,22 @@ class Notch(QWidget):
             p.drawRoundedRect(QRectF(bar.left(), bar.top(), bar.width() * progress, bar.height()),
                               1.2, 1.2)
 
+        df = clamp(self.dropf.x)
+        if df < 0.05:
+            return
         cur = self.mapFromGlobal(QCursor.pos())
-        for action, c in buttons:
+        base = p.opacity()
+        p.setOpacity(base * smoothstep(clamp((df - 0.3) / 0.7)))  # tombol muncul setelah tetesan turun
+        for action, c in self.media_buttons(rect):
             pressed = action == self.btn_pressed and now - self.btn_pressed_at < 0.18
-            if math.hypot(cur.x() - c.x(), cur.y() - c.y()) <= 15:
+            if math.hypot(cur.x() - c.x(), cur.y() - c.y()) <= 14:
                 p.setPen(Qt.NoPen)
                 p.setBrush(QColor(255, 255, 255, 45 if pressed else 28))
-                p.drawEllipse(c, 14, 14)
+                p.drawEllipse(c, 12, 12)
             icon = "pause" if action == "playpause" and info["playing"] else \
                 "play" if action == "playpause" else action
-            self.paint_icon(p, icon, c, 0.8 if pressed else 1.0)
+            self.paint_icon(p, icon, c, (0.6 if pressed else 0.72) * (0.6 + 0.4 * df))
+        p.setOpacity(base)
 
     def paint_icon(self, p, icon, c, scale):
         p.save()
