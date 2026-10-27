@@ -1,4 +1,6 @@
-PySide6-Essentials
+# PySide6 6.12.0 salah hitung refcount None -> crash "deallocating None" di Python < 3.12
+PySide6-Essentials<6.12; python_version < "3.12"
+PySide6-Essentials; python_version >= "3.12"
 python-xlib; sys_platform == "linux"
 jeepney; sys_platform == "linux"
 winrt-runtime; sys_platform == "win32"
