@@ -113,6 +113,18 @@ THEMES = {
         "ink": (255, 255, 255), "fg": (245, 245, 250), "fg2": (205, 205, 214),
         "fg3": (150, 150, 160), "fg4": (115, 115, 125), "on_accent": (15, 15, 25),
         "accent": 1.0, "mouse": COL_MOUSE, "lens": 0.0, "tint_lens": 1.0, "adapt": 0.0}),
+    "putih": ("Putih", {
+        "body_top": (252, 252, 254, 255), "body_bottom": (238, 239, 244, 255),
+        "edge_top": (0, 0, 0, 22), "edge_bottom": (0, 0, 0, 34), "shadow": 0.6,
+        "ink": (0, 0, 0), "fg": (18, 18, 24), "fg2": (50, 50, 60),
+        "fg3": (110, 110, 122), "fg4": (150, 150, 160), "on_accent": (255, 255, 255),
+        "accent": 0.72, "mouse": (45, 45, 58), "lens": 0.0, "tint_lens": 1.0, "adapt": 0.0}),
+    "biru": ("Biru", {
+        "body_top": (32, 74, 176, 255), "body_bottom": (14, 40, 112, 255),
+        "edge_top": (255, 255, 255, 60), "edge_bottom": (255, 255, 255, 18), "shadow": 0.5,
+        "ink": (255, 255, 255), "fg": (245, 247, 255), "fg2": (212, 222, 246),
+        "fg3": (160, 178, 222), "fg4": (125, 145, 196), "on_accent": (15, 15, 25),
+        "accent": 1.0, "mouse": COL_MOUSE, "lens": 0.0, "tint_lens": 1.0, "adapt": 0.0}),
     "kaca_gelap": ("Kaca gelap", {
         "body_top": (60, 60, 72, 180), "body_bottom": (16, 16, 22, 215),
         "edge_top": (255, 255, 255, 110), "edge_bottom": (255, 255, 255, 22), "shadow": 1.0,
@@ -1314,7 +1326,7 @@ class Notch(QWidget):
     # -------------------------------------------------------------- gambar
     def theme_colors(self):
         """Warna tema saat ini; tema kaca pelan-pelan jadi gelap saat menu menempel ke tepi layar."""
-        att = self.attach() if self.theme != "hitam" else 0.0
+        att = self.attach() if THEMES[self.theme][1]["lens"] else 0.0  # tema padat tetap warnanya
         pal = {}
         for k, v in THEMES[self.theme][1].items():
             w = THEME_NEMPEL[k]

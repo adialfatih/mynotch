@@ -31,7 +31,7 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 - Data resmi Kemenag per kabupaten/kota dari [api.myquran.com](https://api.myquran.com). Lokasi diatur manual (tanpa GPS) dan jadwal disimpan per bulan.
 
 **Lain-lain**
-- Tema lewat menu **Pengaturan → Tema**: Hitam (bawaan), Kaca gelap, dan Kaca terang (ala Liquid Glass iOS: tengahnya bening, tepinya membiaskan latar seperti kaca tebal dan berkilau, tint-nya menyesuaikan terang-gelap latar). Saat menu menempel ke tepi layar, tema kaca berubah jadi gelap. Di Ubuntu, tema kaca tembus pandang tanpa efek tepi.
+- Tema lewat menu **Pengaturan → Tema**: Hitam (bawaan), Putih, Biru, Kaca gelap, dan Kaca terang (kaca ala Liquid Glass iOS: tengahnya bening, tepinya membiaskan latar seperti kaca tebal dan berkilau, tint-nya menyesuaikan terang-gelap latar). Saat menu menempel ke tepi layar, tema kaca berubah jadi gelap. Di Ubuntu, tema kaca tembus pandang tanpa efek tepi.
 - Hover ke notch (saat tidak ada musik): jam dan tanggal.
 - Klik: senang + konfeti. Klik 5x cepat: pusing.
 - Disembunyikan otomatis saat ada aplikasi fullscreen (game, video). Bisa dimatikan.
@@ -102,7 +102,7 @@ Lalu tutup notch (klik kanan → **Keluar**) dan jalankan lagi.
 - **Sembunyi saat ada app fullscreen**
 - **Jalan otomatis saat komputer nyala**: Windows lewat folder Startup, Ubuntu lewat `~/.config/autostart`
 - **Pengaturan**: menu bergeser ke kiri ke tiga pengaturan berikut. Tiap pengaturan bergeser ke kiri lagi; **Kembali** / **Batal** bergeser ke kanan satu halaman.
-  - **Tema**: Hitam, Kaca gelap, atau Kaca terang. Selama halaman ini terbuka, notch lepas dari tepi layar supaya temanya langsung kelihatan.
+  - **Tema**: Hitam, Putih, Biru, Kaca gelap, atau Kaca terang. Selama halaman ini terbuka, notch lepas dari tepi layar supaya temanya langsung kelihatan.
   - **Efek mengetik**: daftar saklar per aplikasi (lihat [Efek mengetik](#fitur)). Ringkasannya tampil di sebelah kanan: "Semua", "4 aplikasi", atau "Mati".
   - **Lokasi sholat**: ketik nama kota/kabupaten (misalnya `pekalongan`), pilih Kab./Kota yang benar (klik atau ↑ ↓), lalu **Simpan** atau Enter. Esc / **Batal** untuk kembali.
 - **Keluar**
