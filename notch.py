@@ -50,33 +50,40 @@ except ImportError as exc:
     print(f"Fitur musik nonaktif: {exc}", file=sys.stderr)
     Media = None
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QKeySequence, QPainter,
-                           QPainterPath, QPen, QPixmap, QPolygonF)
+from PySide6.QtCore import QPointF, QRect, QRectF, QSize, Qt, QTimer
+from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor, QFont, QFontMetrics, QImage,
+                           QKeySequence, QLinearGradient, QPainter, QPainterPath, QPen,
+                           QPixmap, QPolygonF)
 from PySide6.QtWidgets import QApplication, QWidget
 
 # ------------------------------------------------------------------ pengaturan
 SLEEP_AFTER = 60.0      # detik tanpa input sebelum tidur
 TYPING_HOLD = 1.4       # berapa lama dianggap "masih ngetik" setelah tombol terakhir
-WIN_W, WIN_H = 560, 250 # kanvas transparan (lebih besar dari pil, buat riak, partikel & menu)
+WIN_W, WIN_H = 560, 300 # kanvas transparan (lebih besar dari pil, buat riak, partikel & menu)
 TOP_GAP = 8
 MENU_EAR = 9            # lengkung cekung di sudut atas saat menu menempel ke tepi layar
 MEDIA_TOAST = 3.5       # detik notifikasi lagu baru tampil
 
 # menu klik kanan: notch memanjang ke bawah jadi panel
-MENU_KEYS = ("fullscreen", "autostart", "ketik", "lokasi", "quit")
+# halaman menu bergeser ke kiri: menu -> Pengaturan -> tema / mengetik / lokasi sholat
+MENU_KEYS = ("fullscreen", "autostart", "pengaturan", "quit")
+SETTINGS_KEYS = ("tema", "ketik", "lokasi")
 MENU_W = 330
 MENU_HEAD = 46          # baris atas (mata + judul)
 MENU_ROW = 34
 MENU_SEP = 9            # jarak garis pemisah sebelum "Keluar"
-MENU_H = MENU_HEAD + len(MENU_KEYS) * MENU_ROW + MENU_SEP + 8
-KETIK_ROW = 29          # baris saklar di halaman "Mengetik" (6 aplikasi harus muat)
+KETIK_ROW = 29          # baris saklar di halaman "Mengetik"
+MENU_H = MENU_HEAD + 2 + 6 * KETIK_ROW + 8  # panel tertinggi (Mengetik, 6 aplikasi), buat area klik
 MENU_LINGER = 0.8      # detik menu bertahan setelah kursor keluar
 LOC_SEARCH_DELAY = 0.45 # detik jeda setelah berhenti ngetik sebelum cari kota
 ROW_MAX_H = 58          # tinggi baris atas di mode lain (panel musik)
 MEDIA_H = 58
 DROP_W, DROP_H = 112, 30  # "tetesan" tombol musik yang turun dari bawah notch
 DROP_EAR = 10           # lengkung cekung tempat tetesan menyatu dengan notch
+GLASS_EVERY = 0.08      # detik antar foto latar untuk tema kaca
+LENS_W = 14             # lebar tepi kaca yang membiaskan latar
+LENS_PULL = 9           # seberapa jauh tepi kaca paling luar "menarik" latar dari luar notch
+LENS_STEPS = 8          # jumlah cincin pembiasan (makin banyak makin halus)
 
 HIT_REGION = (WIN_W // 2 - 215, 0, 430, TOP_GAP + MEDIA_H + DROP_H + 16)  # area klik saat hover (X11)
 MENU_HIT_REGION = (WIN_W // 2 - MENU_W // 2 - 10, 0, MENU_W + 20, TOP_GAP + MENU_H + 24)
@@ -93,6 +100,34 @@ COL_MEDIA = (250, 130, 180)
 COL_MENU = (140, 165, 255)
 COL_DANGER = (255, 120, 110)
 CONFETTI = [(255, 120, 160), (255, 210, 90), (120, 220, 255), (160, 255, 150)]
+
+# tema: (nama, warna). Badan diberi gradasi atas -> bawah, tepinya juga; "ink" = warna dasar
+# garis/sorotan tipis, fg..fg4 = tulisan dari yang paling terang ke yang paling redup,
+# accent = pengali warna mata/aksen (tema terang digelapkan supaya tetap kelihatan),
+# lens = efek kaca (tepi membiaskan latar + kilau), tint_lens = pengali alfa badan saat efek
+# kaca aktif (tengahnya jadi bening), adapt = tint ikut terang-gelapnya latar biar tetap terbaca.
+THEMES = {
+    "hitam": ("Hitam", {
+        "body_top": (0, 0, 0, 255), "body_bottom": (0, 0, 0, 255),
+        "edge_top": (255, 255, 255, 26), "edge_bottom": (255, 255, 255, 26), "shadow": 0.0,
+        "ink": (255, 255, 255), "fg": (245, 245, 250), "fg2": (205, 205, 214),
+        "fg3": (150, 150, 160), "fg4": (115, 115, 125), "on_accent": (15, 15, 25),
+        "accent": 1.0, "mouse": COL_MOUSE, "lens": 0.0, "tint_lens": 1.0, "adapt": 0.0}),
+    "kaca_gelap": ("Kaca gelap", {
+        "body_top": (60, 60, 72, 180), "body_bottom": (16, 16, 22, 215),
+        "edge_top": (255, 255, 255, 110), "edge_bottom": (255, 255, 255, 22), "shadow": 1.0,
+        "ink": (255, 255, 255), "fg": (245, 245, 250), "fg2": (215, 215, 222),
+        "fg3": (170, 170, 180), "fg4": (135, 135, 145), "on_accent": (15, 15, 25),
+        "accent": 1.0, "mouse": COL_MOUSE, "lens": 1.0, "tint_lens": 0.45, "adapt": 1.2}),
+    "kaca_terang": ("Kaca terang", {
+        "body_top": (255, 255, 255, 215), "body_bottom": (236, 237, 243, 180),
+        "edge_top": (255, 255, 255, 240), "edge_bottom": (255, 255, 255, 70), "shadow": 0.8,
+        "ink": (0, 0, 0), "fg": (18, 18, 24), "fg2": (50, 50, 60),
+        "fg3": (95, 95, 108), "fg4": (135, 135, 148), "on_accent": (255, 255, 255),
+        "accent": 0.72, "mouse": (60, 60, 75), "lens": 1.0, "tint_lens": 0.45, "adapt": -1.2}),
+}
+# tema kaca saat menu menempel ke tepi layar: gelap menyatu dengan bezel, tapi bukan hitam pekat
+THEME_NEMPEL = dict(THEMES["hitam"][1], body_top=(26, 26, 30, 235), body_bottom=(26, 26, 30, 235))
 
 HARI = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]
 BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
@@ -189,6 +224,97 @@ def smoothstep(t):
     return t * t * (3 - 2 * t)
 
 
+def vgradient(top, bottom, c0, c1):
+    g = QLinearGradient(0, top, 0, bottom)
+    g.setColorAt(0, c0)
+    g.setColorAt(1, c1)
+    return g
+
+
+# ------------------------------------------------------------------ efek kaca (tema kaca)
+# Semua di sini cuma QImage + QPainter, jadi aman dijalankan di thread foto.
+def divided(num, clear):
+    """num / clear per piksel (gambar opak): color dodge = num / (1 - abu-abu), abu-abu = 1 - clear."""
+    out = QImage(num)
+    cover = QImage(clear)
+    cover.invertPixels()
+    p = QPainter(out)
+    p.setCompositionMode(QPainter.CompositionMode_ColorDodge)
+    p.drawImage(0, 0, cover)
+    p.end()
+    return out
+
+
+def trusted(ratio, clear, times):
+    """Hasil bagi dengan alfa = clear x times: cuma dipakai di tempat latarnya cukup kelihatan."""
+    trust = QImage(clear.size(), QImage.Format_RGB32)
+    trust.fill(Qt.black)
+    p = QPainter(trust)
+    p.setCompositionMode(QPainter.CompositionMode_Plus)
+    for _ in range(times):
+        p.drawImage(0, 0, clear)
+    p.end()
+    out = ratio.convertToFormat(QImage.Format_ARGB32)
+    out.setAlphaChannel(trust)
+    return out
+
+
+def backdrop_from(screen, ours):
+    """Latar tajam di belakang notch, dari foto layar yang masih memuat notch-nya sendiri.
+
+    layar = notch + (1 - alfa) * latar, jadi latar = (layar - notch) / (1 - alfa). Bagian yang
+    tertutup penuh (tepi kaca, mata, tulisan) gak bisa dibagi, jadi ditambal dari versi kecil
+    (rata-rata sekitarnya): mulai dari yang paling kecil, tiap tingkat menimpa tingkat sebelumnya
+    di tempat latarnya cukup kelihatan. Gak ada hitungan per piksel di Python.
+    """
+    size = screen.size()
+
+    def flat(img):  # warna premultiplied di atas hitam = notch * alfa, opak
+        out = QImage(img.size(), QImage.Format_RGB32)
+        out.fill(Qt.black)
+        p = QPainter(out)
+        p.drawImage(0, 0, img)
+        p.end()
+        return out
+
+    ours = ours.convertToFormat(QImage.Format_ARGB32_Premultiplied)
+    ours.setDevicePixelRatio(1)
+    mask = QImage(ours)
+    p = QPainter(mask)  # putih dengan alfa notch -> abu-abu = alfa
+    p.setCompositionMode(QPainter.CompositionMode_SourceIn)
+    p.fillRect(mask.rect(), Qt.white)
+    p.end()
+    clear = flat(mask)
+    clear.invertPixels()  # 1 - alfa
+
+    num = QImage(screen)
+    p = QPainter(num)  # layar - notch (layar selalu >= notch, jadi selisih mutlak = selisih)
+    p.setCompositionMode(QPainter.CompositionMode_Difference)
+    p.drawImage(0, 0, flat(ours))
+    p.end()
+
+    out = None
+    for f in (32, 8, 1):
+        small = QSize(max(1, size.width() // f), max(1, size.height() // f))
+        n, c = (num, clear) if f == 1 else (num.scaled(small, Qt.IgnoreAspectRatio, Qt.SmoothTransformation),
+                                            clear.scaled(small, Qt.IgnoreAspectRatio, Qt.SmoothTransformation))
+        ratio = divided(n, c)
+        if out is None:
+            out = ratio
+            continue
+        out = out.scaled(small, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        p = QPainter(out)
+        p.drawImage(0, 0, trusted(ratio, c, 3 if f == 1 else 4))
+        p.end()
+    return out
+
+
+def luminance(img, rect):
+    """Terang rata-rata (0..1) gambar di dalam rect."""
+    c = img.copy(rect).scaled(1, 1, Qt.IgnoreAspectRatio, Qt.SmoothTransformation).pixelColor(0, 0)
+    return 0.2126 * c.redF() + 0.7152 * c.greenF() + 0.0722 * c.blueF()
+
+
 class Spring:
     """Pegas teredam: x mengejar target dengan sedikit mantul ala iOS."""
 
@@ -233,7 +359,7 @@ class Notch(QWidget):
         self.hl_a = Spring(0, 300, 1.0)
         self.sw_fs = Spring(0, 320, 0.6)
         self.sw_auto = Spring(0, 320, 0.6)
-        self.page = Spring(0, 200, 0.85)  # 0 = daftar menu, 1 = halaman self.sub
+        self.page = Spring(0, 200, 0.85)  # 0 = menu, 1 = Pengaturan, 2 = halaman self.sub
         self.dropf = Spring(0, 190, 0.42)  # redaman kecil -> molor & mantul kayak cairan
         self.springs = [self.pw, self.ph, self.py, self.expand, self.look_x, self.look_y,
                         self.open, self.happy, self.lid, self.sleepf, self.musicf, self.alpha,
@@ -245,6 +371,14 @@ class Notch(QWidget):
         self.t0 = self.last = now
         self.settings = load_settings()
         self.hide_on_fullscreen = self.settings.get("hide_on_fullscreen", True)
+        self.theme = self.settings.get("tema") if self.settings.get("tema") in THEMES else "hitam"
+        self.pal = {}
+        self.backdrop = None       # latar tajam di belakang notch (tema kaca), seukuran kanvas fisik
+        self.bg_lum = self.bg_lum_target = 0.5  # terang latar di bawah notch, 0..1
+        self.body_cache = None     # (kunci bentuk & warna, gambar badan): digambar ulang cuma kalau berubah
+        self.backdrop_job = None   # (foto layar, gambar notch) hasil thread foto, diproses di tick
+        self.backdrop_busy = False
+        self.next_backdrop = 0.0
         saved = self.settings.get("typing", {})
         self.typing_on = {k: saved.get(k, on) for k, (_, _, on) in plat.TYPING_APPS.items()}
         self.sw_type = {k: Spring(float(on), 320, 0.6) for k, on in self.typing_on.items()}
@@ -317,7 +451,7 @@ class Notch(QWidget):
         self.menu_pressed_at = -99.0
         self.autostart_on = False
         self.autostart_lock = threading.Lock()
-        self.sub = "lokasi"  # halaman kanan menu: "lokasi" atau "ketik"
+        self.sub = "lokasi"  # halaman kanan menu: "lokasi", "ketik" atau "tema"
         self.loc_editing = False
         self.loc_text = ""
         self.loc_results = None
@@ -555,6 +689,24 @@ class Notch(QWidget):
             y += MENU_ROW
         return rows
 
+    def settings_layout(self, rect):
+        """[(kunci, kotak)] halaman Pengaturan: Kembali, lalu tema / mengetik / lokasi sholat."""
+        items = [("kembali", QRectF(rect.right() - 80, rect.top() + 6, 70, MENU_HEAD - 14))]
+        for i, key in enumerate(SETTINGS_KEYS):
+            items.append((key, QRectF(rect.left() + 8, rect.top() + MENU_HEAD + 2 + i * MENU_ROW,
+                                      rect.width() - 16, MENU_ROW)))
+        return items
+
+    def menu_height(self):
+        """Tinggi panel untuk halaman yang dituju; ikut berubah mulus saat geser halaman."""
+        if self.page.target == 0:
+            return MENU_HEAD + len(MENU_KEYS) * MENU_ROW + MENU_SEP + 8
+        if self.page.target == 1:
+            return MENU_HEAD + 2 + len(SETTINGS_KEYS) * MENU_ROW + 8
+        return {"ketik": MENU_HEAD + 2 + len(self.plat.TYPING_APPS) * KETIK_ROW + 8,
+                "tema": MENU_HEAD + 2 + len(THEMES) * MENU_ROW + 8,
+                "lokasi": MENU_HEAD + 40 + 3 * MENU_ROW + 8}[self.sub]
+
     def loc_layout(self, rect):
         """[(kunci, kotak)] halaman lokasi: Batal, kolom ketik, Simpan, lalu baris hasil."""
         top = rect.top() + MENU_HEAD
@@ -575,10 +727,21 @@ class Notch(QWidget):
                                                rect.width() - 16, KETIK_ROW)))
         return items
 
+    def tema_layout(self, rect):
+        """[(kunci, kotak)] halaman Tema: Kembali, lalu satu baris per tema."""
+        items = [("kembali", QRectF(rect.right() - 80, rect.top() + 6, 70, MENU_HEAD - 14))]
+        for i, key in enumerate(THEMES):
+            items.append((f"tema:{key}", QRectF(rect.left() + 8, rect.top() + MENU_HEAD + 2 + i * MENU_ROW,
+                                                rect.width() - 16, MENU_ROW)))
+        return items
+
     def page_items(self, rect):
-        if not self.page.target:
+        if self.page.target == 0:
             return self.menu_rows(rect)
-        return self.loc_layout(rect) if self.sub == "lokasi" else self.ketik_layout(rect)
+        if self.page.target == 1:
+            return self.settings_layout(rect)
+        return {"lokasi": self.loc_layout, "ketik": self.ketik_layout,
+                "tema": self.tema_layout}[self.sub](rect)
 
     def menu_item_at(self, pos):
         if not self.menu_open or self.menuf.x < 0.5 or abs(self.page.x - self.page.target) > 0.5:
@@ -607,8 +770,10 @@ class Notch(QWidget):
             self.sw_auto.target = float(self.autostart_on)
             # di Windows butuh PowerShell (lambat): jangan bekukan animasi
             threading.Thread(target=self._apply_autostart, daemon=True).start()
-        elif key == "ketik":
-            self.open_sub("ketik")
+        elif key == "pengaturan":
+            self.open_sub()
+        elif key in ("ketik", "tema"):
+            self.open_sub(key)
         elif key == "kembali":
             self.close_sub()
         elif key.startswith("app:"):
@@ -616,6 +781,10 @@ class Notch(QWidget):
             self.typing_on[cat] = not self.typing_on[cat]
             self.sw_type[cat].target = float(self.typing_on[cat])
             self.settings["typing"] = dict(self.typing_on)
+            save_settings(self.settings)
+        elif key.startswith("tema:"):
+            self.theme = key[5:]
+            self.settings["tema"] = self.theme
             save_settings(self.settings)
         elif key == "lokasi":
             self.open_lokasi(now)
@@ -655,7 +824,8 @@ class Notch(QWidget):
                              args=(self.loc_token, self.loc_text.strip())).start()
 
         key = self.menu_item_at(QPointF(self.mapFromGlobal(QCursor.pos())))
-        row = key if key in MENU_KEYS or (key or "").startswith(("hasil", "app:")) else None
+        row = key if (key in MENU_KEYS or key in SETTINGS_KEYS or
+                      (key or "").startswith(("hasil", "app:", "tema:"))) else None
         if row:
             y = dict(self.page_items(rect))[row].top() - rect.top()
             if self.hl_a.x < 0.05:  # sorotan baru muncul: langsung di baris itu, jangan meluncur
@@ -665,10 +835,11 @@ class Notch(QWidget):
         self.menu_hover = key
         self.hl_a.target = 1.0 if row else 0.0
 
-    def open_sub(self, sub):
-        """Geser ke halaman kanan menu (lokasi sholat / mengetik)."""
-        self.sub = sub
-        self.page.target = 1.0
+    def open_sub(self, sub=None):
+        """Geser ke kiri: tanpa sub ke halaman Pengaturan, dengan sub ke tema / mengetik / lokasi."""
+        if sub:
+            self.sub = sub
+        self.page.target = 2.0 if sub else 1.0
         self.hl_a.x = self.hl_a.target = 0.0
 
     def typing_summary(self):
@@ -687,8 +858,9 @@ class Notch(QWidget):
         self.grabKeyboard()
 
     def close_sub(self):
+        """Geser balik satu halaman ke kanan."""
         self.end_editing()
-        self.page.target = 0.0
+        self.page.target = max(0.0, self.page.target - 1)
         self.hl_a.x = self.hl_a.target = 0.0
 
     def end_editing(self):
@@ -867,8 +1039,12 @@ class Notch(QWidget):
         return QRectF(WIN_W / 2 - pw / 2, top, pw, ph)
 
     def attach(self):
-        """0..1: seberapa menempel notch ke tepi atas layar (cuma saat menu terbuka)."""
-        return clamp(self.menuf.x) if self.plat.MENU_FLUSH else 0.0
+        """0..1: seberapa menempel notch ke tepi atas layar (cuma saat menu terbuka).
+        Di halaman Tema notch lepas lagi, supaya tema yang dipilih langsung kelihatan."""
+        if not self.plat.MENU_FLUSH:
+            return 0.0
+        preview = clamp(self.page.x - 1) if self.sub == "tema" else 0.0
+        return clamp(self.menuf.x) * (1 - preview)
 
     def notch_shape(self, rect, radius):
         """Pil membulat; saat menempel, sudut atas berganti jadi lengkung cekung ke tepi layar."""
@@ -941,14 +1117,52 @@ class Notch(QWidget):
 
     def context_color(self):
         if not self.in_terminal:
-            return COL_MOUSE
+            return THEMES[self.theme][1]["mouse"]
         return {"Claude Code": COL_CLAUDE, "Codex": COL_CODEX}.get(self.agent_name, COL_TERM)
+
+    def update_backdrop(self, now):
+        """Tema kaca: foto layar di belakang notch (di thread lain), lalu buang notch-nya sendiri.
+        Hasilnya bahan untuk tepi kaca yang membiaskan latar, plus terang-gelapnya latar."""
+        if not self.plat.CAN_BLUR or not THEMES[self.theme][1]["lens"]:
+            self.backdrop = None
+            return
+        if self.backdrop_job:
+            self.backdrop, self.bg_lum_target = self.backdrop_job
+            self.backdrop_job = None
+            self.body_cache = None
+        # saat bentuk berubah, frame di layar bisa beda dengan yang digambar ulang: tunggu diam
+        moving = (max(abs(self.pw.v), abs(self.ph.v), abs(self.py.v)) > 20 or
+                  max(abs(s.v) for s in (self.menuf, self.dropf, self.page, self.alpha, self.expand)) > 0.2)
+        if (self.backdrop_busy or now < self.next_backdrop or moving or self.alpha.x < 0.5
+                or self.attach() > 0.99):
+            return
+        self.next_backdrop = now + GLASS_EVERY
+        ours = self.grab().toImage()  # notch persis seperti frame terakhir di layar
+        dpr = self.devicePixelRatioF()
+        r = self.pill_rect()
+        under = QRect(int(r.x() * dpr), int(r.y() * dpr), max(1, int(r.width() * dpr)),
+                      max(1, int(r.height() * dpr)))
+        self.backdrop_busy = True
+        threading.Thread(target=self._grab_screen, daemon=True,
+                         args=(ours, round(self.x() * dpr), round(self.y() * dpr), under)).start()
+
+    def _grab_screen(self, ours, x, y, under):
+        """Thread foto: ambil layar, buang notch-nya, ukur terangnya latar di bawah pil."""
+        try:
+            w, h = ours.width(), ours.height()
+            data = self.plat.grab_screen(x, y, w, h)
+            if data:
+                plate = backdrop_from(QImage(data, w, h, w * 4, QImage.Format_RGB32).copy(), ours)
+                self.backdrop_job = (plate, luminance(plate, under))
+        finally:
+            self.backdrop_busy = False
 
     def tick(self):
         now = time.perf_counter()
         dt = min(now - self.last, 1 / 30)
         self.last = now
         t = now - self.t0
+        self.update_backdrop(now)  # sebelum state berubah: gambar notch harus sama dengan di layar
 
         cur = QCursor.pos()
         mdist = math.hypot(cur.x() - self.prev_cursor.x(), cur.y() - self.prev_cursor.y())
@@ -1025,7 +1239,7 @@ class Notch(QWidget):
         sizes = {"mouse": (190 if playing else 160, 34), "hidden": (160, 34), "sleep": (150, 32),
                  "hover": (270, 44), "typing": (310, 40), "terminal": (310, 40),
                  "thinking": (310, 40), "prayer": (320, 52), "media": (340, MEDIA_H),
-                 "menu": (MENU_W, MENU_H)}
+                 "menu": (MENU_W, self.menu_height())}
         self.pw.target, self.ph.target = sizes[mode]
         if mode == "prayer":  # pengingat lebih panjang dari "Dzuhur  11:52", lebarkan secukupnya
             text_w = QFontMetrics(self.font_clock).horizontalAdvance(self.prayer_lines()[0])
@@ -1084,6 +1298,7 @@ class Notch(QWidget):
                       or self.context_color())
         k = 1 - math.exp(-dt * 6)
         self.color = [lerp(c, tc, k) for c, tc in zip(self.color, target_col)]
+        self.bg_lum = lerp(self.bg_lum, self.bg_lum_target, k)
         decay = math.exp(-dt * 5)
         self.bars = [b * decay for b in self.bars]
         self.ripples = [r + dt / 0.7 for r in self.ripples if r + dt / 0.7 < 1]
@@ -1097,6 +1312,27 @@ class Notch(QWidget):
         self.update()
 
     # -------------------------------------------------------------- gambar
+    def theme_colors(self):
+        """Warna tema saat ini; tema kaca pelan-pelan jadi gelap saat menu menempel ke tepi layar."""
+        att = self.attach() if self.theme != "hitam" else 0.0
+        pal = {}
+        for k, v in THEMES[self.theme][1].items():
+            w = THEME_NEMPEL[k]
+            if isinstance(v, float):
+                pal[k] = lerp(v, w, att)
+            else:
+                pal[k] = QColor(*[int(round(lerp(x, y, att))) for x, y in zip(v, w)])
+        return pal
+
+    def accent(self, rgb):
+        f = self.pal["accent"]
+        return QColor(*[int(c * f) for c in rgb])
+
+    def ink(self, alpha):
+        c = QColor(self.pal["ink"])
+        c.setAlphaF(clamp(alpha))
+        return c
+
     def paintEvent(self, _):
         a = clamp(self.alpha.x)
         if a < 0.01:
@@ -1104,9 +1340,10 @@ class Notch(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setOpacity(a)
+        pal = self.pal = self.theme_colors()
         rect = self.pill_rect()
         radius = min(rect.height() / 2, 22)
-        col = QColor(*[int(c) for c in self.color])
+        col = self.accent(self.color)
 
         p.setBrush(Qt.NoBrush)
         for rt in self.ripples:
@@ -1120,16 +1357,7 @@ class Notch(QWidget):
         drop = self.drop_shape(rect)
         if drop:  # satu bentuk utuh, jadi garis tepinya ikut menyatu
             path = path.united(drop)
-        p.setPen(Qt.NoPen)
-        p.setBrush(QColor(0, 0, 0))
-        p.drawPath(path)
-        p.save()
-        if self.attach() > 0:  # tepi atas menyatu dengan layar, gak perlu garis
-            p.setClipRect(QRectF(0, rect.top() + 1.5, WIN_W, WIN_H))
-        p.setPen(QPen(QColor(255, 255, 255, 26), 1))
-        p.setBrush(Qt.NoBrush)
-        p.drawPath(path)
-        p.restore()
+        self.paint_body(p, rect, radius, path, pal)
 
         p.save()
         p.setClipPath(path)
@@ -1146,6 +1374,127 @@ class Notch(QWidget):
             p.drawEllipse(QPointF(x, y), 2.4, 2.4)
         p.end()
 
+    def paint_body(self, p, rect, radius, path, pal):
+        """Badan notch: bayangan, tepi kaca, tint, garis tepi, kilau. Digambar ke cache; selama
+        bentuk & warnanya sama (hampir sepanjang waktu), cukup tempel gambarnya."""
+        tint = [pal["body_top"], pal["body_bottom"]]
+        glass = pal["lens"] if self.backdrop is not None else 0.0
+        if glass > 0.01:  # tengahnya bening: tint tipis, makin pekat kalau latarnya bikin susah dibaca
+            adapt = 1 + pal["adapt"] * (self.bg_lum - 0.5)
+            k = lerp(1.0, pal["tint_lens"] * adapt, glass)
+            for c in tint:
+                c.setAlphaF(clamp(c.alphaF() * k))
+        att = self.attach()
+        drop = self.drop_rect(rect) if self.dropf.x > 0.05 else QRectF()
+        key = (tuple(round(v, 1) for v in (rect.x(), rect.y(), rect.width(), rect.height(),
+                                           drop.x(), drop.width(), drop.height())),
+               round(att, 3), round(glass, 2), round(pal["shadow"], 2),
+               tuple(c.rgba() for c in (*tint, pal["edge_top"], pal["edge_bottom"])))
+        if self.body_cache and self.body_cache[0] == key:
+            p.drawImage(QPointF(0, 0), self.body_cache[1])
+            return
+
+        dpr = self.devicePixelRatioF()
+        img = QImage(int(WIN_W * dpr), int(WIN_H * dpr), QImage.Format_ARGB32_Premultiplied)
+        img.setDevicePixelRatio(dpr)
+        img.fill(Qt.transparent)
+        q = QPainter(img)
+        q.setRenderHint(QPainter.Antialiasing)
+        bounds = path.boundingRect()
+        if pal["shadow"] > 0.01:  # bayangan lembut, cuma di luar badan (badan kaca tembus pandang)
+            q.save()
+            outside = QPainterPath()
+            outside.addRect(QRectF(0, 0, WIN_W, WIN_H))
+            q.setClipPath(outside.subtracted(path))
+            q.setBrush(Qt.NoBrush)
+            for w, al in ((10, 0.05), (6, 0.07), (3, 0.09)):
+                q.setPen(QPen(QColor(0, 0, 0, int(255 * al * pal["shadow"])), w))
+                q.drawPath(path.translated(0, 2))
+            q.restore()
+        if glass > 0.01:  # tepi kaca membiaskan latar
+            q.save()
+            q.setClipPath(path)
+            q.setOpacity(glass)
+            self.paint_lens(q, rect, radius, drop)
+            q.restore()
+        q.setPen(Qt.NoPen)
+        q.setBrush(vgradient(bounds.top(), bounds.bottom(), *tint))
+        q.drawPath(path)
+        if att > 0:  # tepi atas menyatu dengan layar, gak perlu garis
+            q.setClipRect(QRectF(0, rect.top() + 1.5, WIN_W, WIN_H))
+        edge = vgradient(bounds.top(), bounds.bottom(), pal["edge_top"], pal["edge_bottom"])
+        q.setPen(QPen(QBrush(edge), 1))
+        q.setBrush(Qt.NoBrush)
+        q.drawPath(path)
+        if glass > 0.01:
+            self.paint_rim(q, path, bounds, glass)
+        q.end()
+        self.body_cache = (key, img)
+        p.drawImage(QPointF(0, 0), img)
+
+    @staticmethod
+    def lens_rings(rect, radius):
+        """[(cincin, tarikan)] tepi kaca kotak membulat dari luar ke dalam; tarikan mengecil mulus ke 0."""
+        width = min(LENS_W, rect.height() * 0.32)
+        insets = [width * i / LENS_STEPS for i in range(LENS_STEPS + 1)]
+        shapes = []
+        for d in insets:
+            q = QPainterPath()
+            q.addRoundedRect(rect.adjusted(d, d, -d, -d), max(0.0, radius - d), max(0.0, radius - d))
+            shapes.append(q)
+        rings = []
+        for i in range(LENS_STEPS):
+            ring = QPainterPath(shapes[i])  # odd-even: bentuk luar dikurangi bentuk dalam
+            ring.addPath(shapes[i + 1])
+            ring.setFillRule(Qt.OddEvenFill)
+            mid = (insets[i] + insets[i + 1]) / 2 / width
+            rings.append((ring, LENS_PULL * (1 - mid) ** 3))  # pembiasan menumpuk di dekat tepi
+        return rings
+
+    def paint_lens(self, p, rect, radius, drop):
+        """Tepi kaca membiaskan latar: makin ke pinggir, latar makin 'ditarik' dari luar notch."""
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        base = p.opacity()
+        clip0 = p.clipPath()
+        parts = [(rect, radius, None)]
+        if drop.height() > 2:  # pil & tetesan punya tepi sendiri; sambungannya dibiarkan bening
+            seam = QPainterPath()  # odd-even: seluruh kanvas kecuali bawah pil di atas tetesan
+            seam.addRect(QRectF(0, 0, WIN_W, WIN_H))
+            seam.addRect(QRectF(drop.left() - DROP_EAR, rect.bottom() - LENS_W,
+                                drop.width() + 2 * DROP_EAR, LENS_W + 1))
+            below = QPainterPath()
+            below.addRect(QRectF(0, rect.bottom(), WIN_W, WIN_H))
+            body = drop.adjusted(0, -LENS_W, 0, 0)
+            parts = [(rect, radius, seam), (body, min(13.0, body.width() / 2), below)]
+        s = self.backdrop.width() / WIN_W
+        for r, rad, clip in parts:
+            for ring, pull in self.lens_rings(r, rad):
+                # cincin dalam (pembiasan lemah) makin tembus: latar asli kelihatan, tetap tajam
+                p.setOpacity(base * clamp(2.5 * pull / LENS_PULL))
+                src = r.adjusted(-pull, -pull, pull, pull)
+                src.setTop(max(0.0, src.top()))  # di atas jendela gak ada foto
+                p.setClipPath(clip0)
+                if clip is not None:
+                    p.setClipPath(clip, Qt.IntersectClip)
+                p.setClipPath(ring, Qt.IntersectClip)
+                p.drawImage(r, self.backdrop, QRectF(src.left() * s, src.top() * s,
+                                                     src.width() * s, src.height() * s))
+
+    def paint_rim(self, p, path, bounds, k):
+        """Kilau tepi kaca: garis terang di kiri atas & kanan bawah, plus pendar tipis ke dalam."""
+        p.save()
+        p.setClipPath(path, Qt.IntersectClip)
+        p.setBrush(Qt.NoBrush)
+        for w, al in ((14, 0.025), (8, 0.035), (4, 0.05)):  # tebalnya kaca
+            p.setPen(QPen(QColor(255, 255, 255, int(255 * al * k)), w))
+            p.drawPath(path)
+        light = QConicalGradient(bounds.center(), 0)  # cahaya dari kiri atas (sudut 150°)
+        for at, al in ((0.0, 0.35), (0.167, 0.12), (0.417, 0.95), (0.667, 0.12), (0.917, 0.5), (1.0, 0.35)):
+            light.setColorAt(at, QColor(255, 255, 255, int(255 * al * k)))
+        p.setPen(QPen(QBrush(light), 2.2))  # separuh di luar terpotong -> garis 1.1 px
+        p.drawPath(path)
+        p.restore()
+
     def paint_eyes(self, p, rect, col):
         now = time.perf_counter()
         t = now - self.t0
@@ -1154,7 +1503,6 @@ class Notch(QWidget):
         lx, ly = self.look_x.x, self.look_y.x
         shake = math.sin(t * 60) * 2.4 * s if now < self.shake_until else 0.0
         openness = max(0.07, self.open.x * self.blink)
-        bg = QColor(0, 0, 0)
 
         for side in (-1, 1):
             persp = 1 + 0.13 * lx * side  # mata di arah lirikan sedikit lebih besar
@@ -1178,30 +1526,31 @@ class Notch(QWidget):
                 p.restore()
                 continue
 
-            r = min(ew, eh) / 2
-            p.setPen(Qt.NoPen)
-            for grow, al in ((5 * s, 0.10), (2.5 * s, 0.18)):
-                g = QColor(col)
-                g.setAlphaF(al)
-                p.setBrush(g)
-                p.drawRoundedRect(QRectF(ex - ew / 2 - grow, ey - eh / 2 - grow,
-                                         ew + 2 * grow, eh + 2 * grow), r + grow, r + grow)
-            p.setBrush(col)
-            p.drawRoundedRect(QRectF(ex - ew / 2, ey - eh / 2, ew, eh), r, r)
-
+            # kelopak & senyum dipotong dari bentuk mata (badan kaca tembus pandang, gak bisa ditimpa)
+            cut = QPainterPath()
             top = ey - eh / 2
             lid = self.lid.x
             if lid > 0.01:  # kelopak miring = muka fokus
                 x0, x1 = ex - ew / 2 - 7 * s, ex + ew / 2 + 7 * s
                 outer, inner = top + eh * lid * 0.45, top + eh * lid
                 yl, yr = (outer, inner) if side < 0 else (inner, outer)
-                p.setBrush(bg)
-                p.drawPolygon(QPolygonF([QPointF(x0, top - 8 * s), QPointF(x1, top - 8 * s),
-                                         QPointF(x1, yr), QPointF(x0, yl)]))
+                cut.addPolygon(QPolygonF([QPointF(x0, top - 8 * s), QPointF(x1, top - 8 * s),
+                                          QPointF(x1, yr), QPointF(x0, yl)]))
+                cut.closeSubpath()
             hp = self.happy.x
             if hp > 0.01:  # potong bagian bawah -> mata senyum ∩
-                p.setBrush(bg)
-                p.drawEllipse(QPointF(ex, ey + eh * 0.5 + eh * (1 - hp) * 1.3 + 1), ew, eh * 0.62)
+                smile = QPainterPath()
+                smile.addEllipse(QPointF(ex, ey + eh * 0.5 + eh * (1 - hp) * 1.3 + 1), ew, eh * 0.62)
+                cut = cut.united(smile)
+
+            r = min(ew, eh) / 2
+            for grow, al in ((5 * s, 0.10), (2.5 * s, 0.18), (0, 1.0)):
+                g = QColor(col)
+                g.setAlphaF(al)
+                shape = QPainterPath()
+                shape.addRoundedRect(QRectF(ex - ew / 2 - grow, ey - eh / 2 - grow,
+                                            ew + 2 * grow, eh + 2 * grow), r + grow, r + grow)
+                p.fillPath(shape.subtracted(cut) if not cut.isEmpty() else shape, g)
 
     def paint_content(self, p, rect, col, a):
         now = time.perf_counter()
@@ -1220,28 +1569,29 @@ class Notch(QWidget):
             elif self.mode == "prayer":
                 line1, line2 = self.prayer_lines()
                 p.setFont(self.font_clock)
-                p.setPen(QColor(245, 245, 250))
+                p.setPen(self.pal["fg"])
                 p.drawText(QRectF(x0, rect.top() + 7, area.width(), 22),
                            Qt.AlignVCenter | Qt.AlignLeft, line1)
                 p.setFont(self.font_small)
-                p.setPen(QColor(150, 150, 160))
+                p.setPen(self.pal["fg3"])
                 p.drawText(QRectF(x0, rect.top() + 29, area.width(), 16),
                            Qt.AlignVCenter | Qt.AlignLeft,
                            QFontMetrics(self.font_small).elidedText(line2, Qt.ElideRight,
                                                                    int(area.width())))
             elif self.mode == "menu":  # judul halaman berganti pelan saat geser
-                pg = clamp(self.page.x)
-                title2, back, back_key = (("Lokasi sholat", "Batal", "batal") if self.sub == "lokasi"
-                                          else ("Mengetik", "Kembali", "kembali"))
-                back_c = QColor(245, 245, 250) if self.menu_hover == back_key else QColor(150, 150, 160)
-                for title, right, rc, al in (("Pengaturan", time.strftime("%H:%M"),
-                                              QColor(150, 150, 160), 1 - pg),
-                                             (title2, back, back_c, pg)):
+                pg = self.page.x
+                sub = {"lokasi": ("Lokasi sholat", "Batal", "batal"),
+                       "ketik": ("Mengetik", "Kembali", "kembali"),
+                       "tema": ("Tema", "Kembali", "kembali")}[self.sub]
+                levels = (("Menu", time.strftime("%H:%M"), None), ("Pengaturan", "Kembali", "kembali"), sub)
+                for level, (title, right, key) in enumerate(levels):
+                    al = clamp(1 - abs(level - pg))
                     if al < 0.01:
                         continue
+                    rc = self.pal["fg"] if key and self.menu_hover == key else self.pal["fg3"]
                     p.setOpacity(a * c * al)
                     p.setFont(self.font_label)
-                    p.setPen(QColor(245, 245, 250))
+                    p.setPen(self.pal["fg"])
                     p.drawText(area, Qt.AlignVCenter | Qt.AlignLeft, title)
                     p.setFont(self.font_small)
                     p.setPen(rc)
@@ -1249,10 +1599,10 @@ class Notch(QWidget):
             elif self.mode == "hover":
                 lt = time.localtime()
                 p.setFont(self.font_clock)
-                p.setPen(QColor(245, 245, 250))
+                p.setPen(self.pal["fg"])
                 p.drawText(area, Qt.AlignVCenter | Qt.AlignLeft, time.strftime("%H:%M", lt))
                 p.setFont(self.font_label)
-                p.setPen(QColor(150, 150, 160))
+                p.setPen(self.pal["fg3"])
                 p.drawText(area, Qt.AlignVCenter | Qt.AlignRight,
                            f"{HARI[lt.tm_wday]}, {lt.tm_mday} {BULAN[lt.tm_mon - 1]}")
             else:
@@ -1287,7 +1637,7 @@ class Notch(QWidget):
 
                 text_w = max(0.0, area.width() - right_w - 8)
                 p.setFont(self.font_label)
-                p.setPen(col if flash else QColor(215, 215, 222))
+                p.setPen(col if flash else self.pal["fg2"])
                 text = QFontMetrics(self.font_label).elidedText(label, Qt.ElideRight, int(text_w))
                 p.drawText(QRectF(x0, rect.top(), text_w, hh),
                            Qt.AlignVCenter | Qt.AlignLeft, text)
@@ -1295,7 +1645,7 @@ class Notch(QWidget):
 
         mf = self.musicf.x
         if mf > 0.02:  # indikator kecil "lagi ada musik" di notch mode ringkas
-            mc = QColor(*COL_MEDIA)
+            mc = self.accent(COL_MEDIA)
             mc.setAlphaF(clamp(mf))
             p.setPen(Qt.NoPen)
             p.setBrush(mc)
@@ -1321,15 +1671,16 @@ class Notch(QWidget):
         m = clamp(self.menuf.x)
         if m < 0.01:
             return
-        line = QColor(255, 255, 255)
+        line = QColor(self.pal["ink"])
         line.setAlphaF(0.08 * m)
         p.setPen(QPen(line, 1))
         y = rect.top() + MENU_HEAD - 4
         p.drawLine(QPointF(rect.left() + 18, y), QPointF(rect.right() - 18, y))
 
-        # dua halaman berdampingan: daftar menu di kiri, lokasi / mengetik di kanan
+        # tiga halaman berjajar ke kanan: menu, Pengaturan, lalu tema / mengetik / lokasi
         pg = self.page.x
-        for page, shift in ((0, -pg), (1, 1 - pg)):
+        for page in range(3):
+            shift = page - pg
             if abs(shift) > 0.999:  # halaman di luar notch
                 continue
             fade = 1 - 0.6 * abs(shift)
@@ -1337,8 +1688,12 @@ class Notch(QWidget):
             p.translate(shift * rect.width(), 0)
             if page == 0:
                 self.paint_menu_main(p, rect, col, a * fade, m)
+            elif page == 1:
+                self.paint_menu_settings(p, rect, col, a * fade, m)
             elif self.sub == "lokasi":
                 self.paint_menu_lokasi(p, rect, col, a * fade, m)
+            elif self.sub == "tema":
+                self.paint_menu_tema(p, rect, col, a * fade, m)
             else:
                 self.paint_menu_ketik(p, rect, col, a * fade, m)
             p.restore()
@@ -1350,7 +1705,7 @@ class Notch(QWidget):
             return
         danger = self.hl_key == "quit"
         pressed = time.perf_counter() - self.menu_pressed_at < 0.15
-        c = QColor(*COL_DANGER) if danger else QColor(255, 255, 255)
+        c = self.accent(COL_DANGER) if danger else QColor(self.pal["ink"])
         c.setAlphaF(clamp(hl * (0.16 if danger else 0.08) * (1.8 if pressed else 1.0)))
         p.setPen(Qt.NoPen)
         p.setBrush(c)
@@ -1362,8 +1717,9 @@ class Notch(QWidget):
         k = clamp(v)
         track = QRectF(right - 30, cy - 9, 30, 18)
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(int(lerp(255, col.red(), k)), int(lerp(255, col.green(), k)),
-                          int(lerp(255, col.blue(), k)), int(lerp(40, 255, k))))
+        ink = self.pal["ink"]
+        p.setBrush(QColor(int(lerp(ink.red(), col.red(), k)), int(lerp(ink.green(), col.green(), k)),
+                          int(lerp(ink.blue(), col.blue(), k)), int(lerp(40, 255, k))))
         p.drawRoundedRect(track, 9, 9)
         p.setBrush(QColor(250, 250, 252))
         p.drawEllipse(QPointF(track.left() + 9 + v * 12, cy), 7, 7)
@@ -1372,39 +1728,52 @@ class Notch(QWidget):
     def paint_menu_main(self, p, rect, col, a, m):
         rows = self.menu_rows(rect)
         p.setOpacity(a)
-        line = QColor(255, 255, 255)
+        line = QColor(self.pal["ink"])
         line.setAlphaF(0.08 * m)
         p.setPen(QPen(line, 1))
         y = rows[-1][1].top() - MENU_SEP / 2
         p.drawLine(QPointF(rect.left() + 18, y), QPointF(rect.right() - 18, y))
         self.paint_highlight(p, rect, m, lambda k: k in MENU_KEYS)  # meluncur ke baris di-hover
+        self.paint_rows(p, rows, col, a, m, stagger=True)
 
+    def paint_menu_settings(self, p, rect, col, a, m):
+        p.setOpacity(a * m)
+        self.paint_highlight(p, rect, m, lambda k: k in SETTINGS_KEYS)
+        self.paint_rows(p, self.settings_layout(rect)[1:], col, a * m, m, stagger=False)
+
+    def paint_rows(self, p, rows, col, a, m, stagger):
+        """Baris menu: ikon + label, lalu saklar atau ringkasan + ›. stagger = muncul satu per satu."""
         lokasi = self.settings.get("sholat")
         labels = {"fullscreen": "Sembunyi saat ada app fullscreen",
-                  "autostart": "Jalan otomatis saat komputer nyala",
-                  "ketik": "Efek mengetik", "lokasi": "Lokasi sholat", "quit": "Keluar"}
+                  "autostart": "Jalan otomatis saat komputer nyala", "pengaturan": "Pengaturan",
+                  "tema": "Tema", "ketik": "Efek mengetik", "lokasi": "Lokasi sholat",
+                  "quit": "Keluar"}
         fm = QFontMetrics(self.font_item)
         fm_small = QFontMetrics(self.font_small)
         for i, (key, r) in enumerate(rows):
-            appear = smoothstep(clamp((m - 0.2 - i * 0.1) / 0.45))  # muncul satu per satu
+            appear = smoothstep(clamp((m - 0.2 - i * 0.1) / 0.45)) if stagger else 1.0
             if appear < 0.01:
                 continue
             p.setOpacity(a * appear)
             r = r.translated(0, (appear - 1) * 8)
             cy = r.center().y()
-            fg = (QColor(*COL_DANGER) if key == "quit" else
-                  QColor(245, 245, 250) if key == self.menu_hover else QColor(205, 205, 214))
+            fg = (self.accent(COL_DANGER) if key == "quit" else
+                  self.pal["fg"] if key == self.menu_hover else self.pal["fg2"])
             self.paint_menu_icon(p, key, QPointF(r.left() + 17, cy), fg)
             text_x, right = r.left() + 36, r.right() - 12
 
             if key in ("fullscreen", "autostart"):
                 v = (self.sw_fs if key == "fullscreen" else self.sw_auto).x
                 right = self.paint_switch(p, right, cy, v, col) - 10
-            elif key in ("ketik", "lokasi"):  # ringkasan + ›
+            elif key == "pengaturan":
                 self.paint_chevron(p, QPointF(right, cy))
-                value = (self.typing_summary() if key == "ketik" else
+                right -= 20
+            elif key in SETTINGS_KEYS:  # ringkasan + ›
+                self.paint_chevron(p, QPointF(right, cy))
+                value = (THEMES[self.theme][0] if key == "tema" else
+                         self.typing_summary() if key == "ketik" else
                          lokasi["lokasi"] if lokasi else "Atur")
-                vw = min(fm_small.horizontalAdvance(value), 130)
+                vw = min(fm_small.horizontalAdvance(value) + 2, 130)  # +2: pembulatan bikin "Hitam" jadi "Hita…"
                 p.setFont(self.font_small)
                 p.drawText(QRectF(right - 12 - vw, r.top(), vw, r.height()),
                            Qt.AlignVCenter | Qt.AlignRight,
@@ -1427,10 +1796,30 @@ class Notch(QWidget):
             right = self.paint_switch(p, r.right() - 12, cy, self.sw_type[cat].x, col) - 10
             text_w = max(0, int(right - r.left() - 16))
             p.setFont(self.font_item)
-            p.setPen(QColor(245, 245, 250) if key == self.menu_hover else QColor(205, 205, 214))
+            p.setPen(self.pal["fg"] if key == self.menu_hover else self.pal["fg2"])
             p.drawText(QRectF(r.left() + 16, r.top(), text_w, r.height()),
                        Qt.AlignVCenter | Qt.AlignLeft,
                        fm.elidedText(self.plat.TYPING_APPS[cat][0], Qt.ElideRight, text_w))
+
+    def paint_menu_tema(self, p, rect, col, a, m):
+        p.setOpacity(a * m)
+        self.paint_highlight(p, rect, m, lambda k: k.startswith("tema:"))
+        for key, r in self.tema_layout(rect)[1:]:
+            name, colors = THEMES[key[5:]]
+            cy = r.center().y()
+            sel = key[5:] == self.theme
+            # contoh kecil badan notch tema itu
+            swatch = QRectF(r.left() + 9, cy - 7, 24, 14)
+            p.setPen(QPen(self.ink(0.2), 1))
+            p.setBrush(vgradient(swatch.top(), swatch.bottom(),
+                                 QColor(*colors["body_top"]), QColor(*colors["body_bottom"])))
+            p.drawRoundedRect(swatch, 7, 7)
+            p.setFont(self.font_item)
+            p.setPen(self.pal["fg"] if sel or key == self.menu_hover else self.pal["fg2"])
+            p.drawText(QRectF(r.left() + 44, r.top(), r.width() - 78, r.height()),
+                       Qt.AlignVCenter | Qt.AlignLeft, name)
+            if sel:
+                self.paint_check(p, QPointF(r.right() - 16, cy), col)
 
     def paint_menu_lokasi(self, p, rect, col, a, m):
         now = time.perf_counter()
@@ -1443,17 +1832,17 @@ class Notch(QWidget):
         border = QColor(col)
         border.setAlphaF(0.55 if self.loc_editing else 0.0)
         p.setPen(QPen(border, 1.2))
-        p.setBrush(QColor(255, 255, 255, 22))
+        p.setBrush(self.ink(0.086))
         p.drawRoundedRect(field, 10, 10)
         text_rect = field.adjusted(12, 0, -10, 0)
         p.setFont(self.font_item)
         if self.loc_text:
             shown = fm.elidedText(self.loc_text, Qt.ElideLeft, int(text_rect.width() - 4))
-            p.setPen(QColor(245, 245, 250))
+            p.setPen(self.pal["fg"])
             p.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, shown)
             caret_x = text_rect.left() + fm.horizontalAdvance(shown) + 1
         else:
-            p.setPen(QColor(115, 115, 125))
+            p.setPen(self.pal["fg4"])
             p.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, "Nama kota, mis. pekalongan")
             caret_x = text_rect.left()
         if self.loc_editing and (now - self.loc_key_at) % 1.0 < 0.55:  # kedip, diam saat ngetik
@@ -1469,11 +1858,11 @@ class Notch(QWidget):
         if ok:
             p.setBrush(QColor(col).lighter(118) if self.menu_hover == "simpan" else col)
         else:
-            p.setBrush(QColor(255, 255, 255, 22))
+            p.setBrush(self.ink(0.086))
         d = 1.5 if pressed else 0.0  # mengecil sedikit saat ditekan
         p.drawRoundedRect(simpan.adjusted(d, d, -d, -d), 10, 10)
         p.setFont(self.font_label)
-        p.setPen(QColor(15, 15, 25) if ok else QColor(110, 110, 120))
+        p.setPen(self.pal["on_accent"] if ok else self.pal["fg4"])
         p.drawText(simpan, Qt.AlignCenter, "Simpan")
 
         # hasil pencarian / keterangan
@@ -1484,37 +1873,40 @@ class Notch(QWidget):
             r = lay[f"hasil{i}"]
             cy = r.center().y()
             sel = i == self.loc_sel
-            fg = QColor(245, 245, 250) if sel or self.menu_hover == f"hasil{i}" else QColor(190, 190, 200)
+            fg = self.pal["fg"] if sel or self.menu_hover == f"hasil{i}" else self.pal["fg2"]
             self.paint_menu_icon(p, "lokasi", QPointF(r.left() + 17, cy), col if sel else fg)
             p.setFont(self.font_item)
             p.setPen(fg)
             p.drawText(QRectF(r.left() + 36, r.top(), r.width() - 70, r.height()),
                        Qt.AlignVCenter | Qt.AlignLeft,
                        fm.elidedText(h["lokasi"], Qt.ElideRight, int(r.width() - 70)))
-            if sel:  # centang
-                pen = QPen(col, 2.0)
-                pen.setCapStyle(Qt.RoundCap)
-                pen.setJoinStyle(Qt.RoundJoin)
-                p.setPen(pen)
-                x = r.right() - 16
-                p.drawPolyline(QPolygonF([QPointF(x - 9, cy), QPointF(x - 5, cy + 4),
-                                          QPointF(x + 2, cy - 4)]))
+            if sel:
+                self.paint_check(p, QPointF(r.right() - 16, cy), col)
         extra = len(self.loc_results or []) - len(shown)
         note = f"+{extra} lainnya, ketik lebih lengkap" if extra else None if shown else self.loc_status
         if note:
             if note == "Mencari":
                 note += "." * (1 + int(now * 3) % 3)
             p.setFont(self.font_small)
-            p.setPen(QColor(140, 140, 150))
+            p.setPen(self.pal["fg3"])
             p.drawText(QRectF(rect.left() + 24, top + len(shown) * MENU_ROW, rect.width() - 48, MENU_ROW),
                        Qt.AlignVCenter | Qt.AlignLeft, note)
 
     def paint_chevron(self, p, c):
-        pen = QPen(QColor(150, 150, 160), 1.6)
+        pen = QPen(self.pal["fg3"], 1.6)
         pen.setCapStyle(Qt.RoundCap)
         pen.setJoinStyle(Qt.RoundJoin)
         p.setPen(pen)
         p.drawPolyline(QPolygonF([QPointF(c.x() - 4, c.y() - 4), c, QPointF(c.x() - 4, c.y() + 4)]))
+
+    def paint_check(self, p, c, col):
+        """Centang; c = ujung kanan bawah lengkungnya."""
+        pen = QPen(col, 2.0)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+        p.setPen(pen)
+        x, y = c.x(), c.y()
+        p.drawPolyline(QPolygonF([QPointF(x - 9, y), QPointF(x - 5, y + 4), QPointF(x + 2, y - 4)]))
 
     def paint_menu_icon(self, p, key, c, color):
         p.save()
@@ -1549,6 +1941,23 @@ class Notch(QWidget):
             pin.cubicTo(5.5, 1, 2, 4, 0, 7)
             p.drawPath(pin)
             p.drawEllipse(QPointF(0, -2), 1.6, 1.6)
+        elif key == "pengaturan":  # tiga penggeser
+            for y, x in ((-4.5, -2.5), (0, 2.5), (4.5, -0.5)):
+                p.drawLine(QPointF(-6.5, y), QPointF(6.5, y))
+                p.save()
+                p.setPen(Qt.NoPen)
+                p.setBrush(color)
+                p.drawEllipse(QPointF(x, y), 2.0, 2.0)
+                p.restore()
+        elif key == "tema":  # lingkaran setengah terisi
+            p.drawEllipse(QPointF(0, 0), 6, 6)
+            half = QPainterPath()
+            half.moveTo(0, -6)
+            half.arcTo(QRectF(-6, -6, 12, 12), 90, 180)
+            half.closeSubpath()
+            p.setPen(Qt.NoPen)
+            p.setBrush(color)
+            p.drawPath(half)
         else:  # tombol power
             p.drawArc(QRectF(-6, -5, 12, 12), 125 * 16, 290 * 16)
             p.drawLine(QPointF(0, -6.5), QPointF(0, 0))
@@ -1569,19 +1978,19 @@ class Notch(QWidget):
             p.drawPixmap(cover, self.art_pixmap, QRectF(self.art_pixmap.rect()))
             p.restore()
         else:
-            p.fillPath(clip, QColor(40, 40, 46))
-            p.setPen(QColor(*COL_MEDIA))
+            p.fillPath(clip, self.ink(0.157))
+            p.setPen(self.accent(COL_MEDIA))
             p.setFont(self.font_clock)
             p.drawText(cover, Qt.AlignCenter, "♪")
 
         x0 = cover.right() + 10
         text_w = max(0.0, rect.right() - 18 - x0)
         p.setFont(self.font_label)
-        p.setPen(QColor(245, 245, 250))
+        p.setPen(self.pal["fg"])
         p.drawText(QRectF(x0, rect.top() + 10, text_w, 18), Qt.AlignVCenter | Qt.AlignLeft,
                    QFontMetrics(self.font_label).elidedText(info["title"], Qt.ElideRight, int(text_w)))
         p.setFont(self.font_small)
-        p.setPen(QColor(150, 150, 160))
+        p.setPen(self.pal["fg3"])
         p.drawText(QRectF(x0, rect.top() + 27, text_w, 16), Qt.AlignVCenter | Qt.AlignLeft,
                    QFontMetrics(self.font_small).elidedText(info["artist"], Qt.ElideRight, int(text_w)))
 
@@ -1589,9 +1998,9 @@ class Notch(QWidget):
         if progress is not None:
             bar = QRectF(x0, rect.top() + 46, text_w, 2.5)
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor(255, 255, 255, 40))
+            p.setBrush(self.ink(0.157))
             p.drawRoundedRect(bar, 1.2, 1.2)
-            p.setBrush(QColor(*COL_MEDIA))
+            p.setBrush(self.accent(COL_MEDIA))
             p.drawRoundedRect(QRectF(bar.left(), bar.top(), bar.width() * progress, bar.height()),
                               1.2, 1.2)
 
@@ -1605,7 +2014,7 @@ class Notch(QWidget):
             pressed = action == self.btn_pressed and now - self.btn_pressed_at < 0.18
             if math.hypot(cur.x() - c.x(), cur.y() - c.y()) <= 14:
                 p.setPen(Qt.NoPen)
-                p.setBrush(QColor(255, 255, 255, 45 if pressed else 28))
+                p.setBrush(self.ink(0.176 if pressed else 0.11))
                 p.drawEllipse(c, 12, 12)
             icon = "pause" if action == "playpause" and info["playing"] else \
                 "play" if action == "playpause" else action
@@ -1617,7 +2026,7 @@ class Notch(QWidget):
         p.translate(c)
         p.scale(scale, scale)
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(245, 245, 250))
+        p.setBrush(self.pal["fg"])
         if icon == "play":
             p.drawPolygon(QPolygonF([QPointF(-4, -6.5), QPointF(-4, 6.5), QPointF(7, 0)]))
         elif icon == "pause":

@@ -33,6 +33,7 @@ STARTUP_LNK =os.path.join(os.environ.get("APPDATA", ""),
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
 
 
 class LASTINPUTINFO(ctypes.Structure):
@@ -42,6 +43,13 @@ class LASTINPUTINFO(ctypes.Structure):
 class MONITORINFO(ctypes.Structure):
     _fields_ = [("cbSize", wt.DWORD), ("rcMonitor", wt.RECT),
                 ("rcWork", wt.RECT), ("dwFlags", wt.DWORD)]
+
+
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [("biSize", wt.DWORD), ("biWidth", wt.LONG), ("biHeight", wt.LONG),
+                ("biPlanes", wt.WORD), ("biBitCount", wt.WORD), ("biCompression", wt.DWORD),
+                ("biSizeImage", wt.DWORD), ("biXPelsPerMeter", wt.LONG),
+                ("biYPelsPerMeter", wt.LONG), ("biClrUsed", wt.DWORD), ("biClrImportant", wt.DWORD)]
 
 
 user32.GetForegroundWindow.restype = wt.HWND
@@ -76,6 +84,20 @@ kernel32.CloseHandle.argtypes = [wt.HANDLE]
 kernel32.GetTickCount.restype = wt.DWORD
 kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wt.BOOL, wt.LPCWSTR]
 kernel32.CreateMutexW.restype = wt.HANDLE
+user32.GetDC.argtypes = [wt.HWND]
+user32.GetDC.restype = wt.HDC
+user32.ReleaseDC.argtypes = [wt.HWND, wt.HDC]
+gdi32.CreateCompatibleDC.argtypes = [wt.HDC]
+gdi32.CreateCompatibleDC.restype = wt.HDC
+gdi32.CreateDIBSection.argtypes = [wt.HDC, ctypes.c_void_p, wt.UINT,
+                                   ctypes.POINTER(ctypes.c_void_p), wt.HANDLE, wt.DWORD]
+gdi32.CreateDIBSection.restype = wt.HBITMAP
+gdi32.SelectObject.argtypes = [wt.HDC, wt.HGDIOBJ]
+gdi32.SelectObject.restype = wt.HGDIOBJ
+gdi32.BitBlt.argtypes = [wt.HDC, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                         wt.HDC, ctypes.c_int, ctypes.c_int, wt.DWORD]
+gdi32.DeleteObject.argtypes = [wt.HGDIOBJ]
+gdi32.DeleteDC.argtypes = [wt.HDC]
 
 GWL_EXSTYLE = -20
 WS_EX_TRANSPARENT = 0x20
@@ -86,6 +108,7 @@ HWND_TOPMOST = wt.HWND(-1)
 SWP_FLAGS = 0x0001 | 0x0002 | 0x0010  # NOSIZE | NOMOVE | NOACTIVATE
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 ERROR_ALREADY_EXISTS = 183
+SRCCOPY = 0x00CC0020
 
 
 def _window_pid(hwnd):
@@ -124,6 +147,7 @@ class Platform:
     FONT = "Segoe UI"
     TERMINALS = TERMINALS
     MENU_FLUSH = True  # menu klik kanan menempel ke tepi atas layar
+    CAN_BLUR = True    # tema kaca: latar di belakang notch diburamkan (pakai grab_screen)
 
     KEY_ENTER, KEY_BACKSPACE, KEY_C = 0x0D, 0x08, 0x43
     CTRL_KEYS = {0xA2, 0xA3}
@@ -197,6 +221,27 @@ class Platform:
         ex = user32.GetWindowLongPtrW(self.hwnd, GWL_EXSTYLE)
         user32.SetWindowLongPtrW(self.hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW)
         self.set_click_through(True, None)
+
+    def grab_screen(self, x, y, w, h):
+        """Piksel layar (BGRA, w*h*4 byte; koordinat fisik). Notch ikut terfoto. Aman dari thread lain."""
+        screen = user32.GetDC(None)
+        mem = gdi32.CreateCompatibleDC(screen)
+        bih = BITMAPINFOHEADER(ctypes.sizeof(BITMAPINFOHEADER), w, -h, 1, 32, 0)  # -h: baris dari atas
+        bits = ctypes.c_void_p()
+        bmp = gdi32.CreateDIBSection(mem, ctypes.byref(bih), 0, ctypes.byref(bits), None, 0)
+        try:
+            if not bmp:
+                return None
+            old = gdi32.SelectObject(mem, bmp)
+            ok = gdi32.BitBlt(mem, 0, 0, w, h, screen, x, y, SRCCOPY)
+            data = ctypes.string_at(bits, w * h * 4) if ok else None
+            gdi32.SelectObject(mem, old)
+            return data
+        finally:
+            if bmp:
+                gdi32.DeleteObject(bmp)
+            gdi32.DeleteDC(mem)
+            user32.ReleaseDC(None, screen)
 
     def set_click_through(self, on, region):
         # region tidak perlu: piksel transparan di layered window memang sudah tembus klik

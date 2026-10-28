@@ -52,6 +52,7 @@ class Platform:
     FONT = "Ubuntu"
     TERMINALS = TERMINALS
     MENU_FLUSH = False  # notch di bawah top bar GNOME, biarkan melayang
+    CAN_BLUR = False    # belum ada foto layar di X11: tema kaca tanpa blur
     TYPING_APPS = TYPING_APPS
 
     def __init__(self):

@@ -12,7 +12,7 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 **Efek mengetik**
 - Saat mengetik, matanya fokus ke bawah dan bar equalizer ikut bergerak. **Enter**: riak. **Backspace**: geleng-geleng.
 - Aktif di terminal, Microsoft Word, Microsoft Excel, Notepad, browser, dan VS Code. Di Ubuntu, Word/Excel/Notepad diganti LibreOffice Writer, LibreOffice Calc, dan Text Editor.
-- Bisa dinyalakan/dimatikan per aplikasi lewat menu **Efek mengetik**. Bawaan Windows: semua nyala. Bawaan Ubuntu: hanya Terminal dan VS Code.
+- Bisa dinyalakan/dimatikan per aplikasi lewat menu **Pengaturan → Efek mengetik**. Bawaan Windows: semua nyala. Bawaan Ubuntu: hanya Terminal dan VS Code.
 - Di luar terminal, shortcut (Ctrl+C, Ctrl+V, dll.) dan tombol navigasi (panah, Page Down, F1–F12) tidak dihitung mengetik. Aplikasi di luar daftar tidak memicu efek ini.
 
 **Mode terminal** (Windows Terminal, PowerShell, CMD, gnome-terminal, Kitty, Alacritty, WezTerm, Tilix, Konsole, dll.)
@@ -31,12 +31,13 @@ Notch ala **Dynamic Island** untuk desktop **Windows** dan **Ubuntu (Xorg)**: pi
 - Data resmi Kemenag per kabupaten/kota dari [api.myquran.com](https://api.myquran.com). Lokasi diatur manual (tanpa GPS) dan jadwal disimpan per bulan.
 
 **Lain-lain**
+- Tema lewat menu **Pengaturan → Tema**: Hitam (bawaan), Kaca gelap, dan Kaca terang (ala Liquid Glass iOS: tengahnya bening, tepinya membiaskan latar seperti kaca tebal dan berkilau, tint-nya menyesuaikan terang-gelap latar). Saat menu menempel ke tepi layar, tema kaca berubah jadi gelap. Di Ubuntu, tema kaca tembus pandang tanpa efek tepi.
 - Hover ke notch (saat tidak ada musik): jam dan tanggal.
 - Klik: senang + konfeti. Klik 5x cepat: pusing.
 - Disembunyikan otomatis saat ada aplikasi fullscreen (game, video). Bisa dimatikan.
 - Area di sekitar notch tembus klik, dan notch tidak mengambil fokus dari aplikasi yang sedang aktif.
 
-> **Privasi:** notch hanya mendeteksi *ada* tombol yang ditekan (dan jenisnya: Enter, Backspace, Ctrl+C) saat terminal atau aplikasi yang dinyalakan di menu **Efek mengetik** aktif. Isi ketikan tidak pernah dibaca atau disimpan.
+> **Privasi:** notch hanya mendeteksi *ada* tombol yang ditekan (dan jenisnya: Enter, Backspace, Ctrl+C) saat terminal atau aplikasi yang dinyalakan di menu **Pengaturan → Efek mengetik** aktif. Isi ketikan tidak pernah dibaca atau disimpan.
 
 ## Instalasi
 
@@ -97,11 +98,13 @@ Lalu tutup notch (klik kanan → **Keluar**) dan jalankan lagi.
 | Klik ⏮ ⏯ ⏭ (di bawah panel musik) | Kontrol media |
 | Klik kanan | Menu |
 
-**Menu klik kanan**: notch memanjang ke bawah jadi panel pengaturan. Di Windows, panelnya naik menempel ke tepi atas layar dengan lengkung kecil di sudut atas, ala notch MacBook. Tutup dengan klik di luar, klik kanan lagi, atau gerakkan kursor menjauh.
+**Menu klik kanan**: notch memanjang ke bawah jadi panel. Di Windows, panelnya naik menempel ke tepi atas layar dengan lengkung kecil di sudut atas, ala notch MacBook. Tutup dengan klik di luar, klik kanan lagi, atau gerakkan kursor menjauh.
 - **Sembunyi saat ada app fullscreen**
 - **Jalan otomatis saat komputer nyala**: Windows lewat folder Startup, Ubuntu lewat `~/.config/autostart`
-- **Efek mengetik**: menu bergeser ke daftar saklar per aplikasi (lihat [Efek mengetik](#fitur)). Ringkasannya tampil di sebelah kanan: "Semua", "4 aplikasi", atau "Mati". **Kembali** untuk ke menu utama.
-- **Lokasi sholat**: menu bergeser ke halaman lokasi di dalam notch. Ketik nama kota/kabupaten (misalnya `pekalongan`), pilih Kab./Kota yang benar (klik atau ↑ ↓), lalu **Simpan** atau Enter. Esc / **Batal** untuk kembali.
+- **Pengaturan**: menu bergeser ke kiri ke tiga pengaturan berikut. Tiap pengaturan bergeser ke kiri lagi; **Kembali** / **Batal** bergeser ke kanan satu halaman.
+  - **Tema**: Hitam, Kaca gelap, atau Kaca terang. Selama halaman ini terbuka, notch lepas dari tepi layar supaya temanya langsung kelihatan.
+  - **Efek mengetik**: daftar saklar per aplikasi (lihat [Efek mengetik](#fitur)). Ringkasannya tampil di sebelah kanan: "Semua", "4 aplikasi", atau "Mati".
+  - **Lokasi sholat**: ketik nama kota/kabupaten (misalnya `pekalongan`), pilih Kab./Kota yang benar (klik atau ↑ ↓), lalu **Simpan** atau Enter. Esc / **Batal** untuk kembali.
 - **Keluar**
 
 Pengaturan disimpan di `notch_settings.json` (tidak ikut di-commit).
@@ -120,7 +123,7 @@ Pengaturan disimpan di `notch_settings.json` (tidak ikut di-commit).
 - **Jadwal sholat "Gagal ambil jadwal".** Cek koneksi internet, lalu klik 2x lagi.
 - **Pengingat sholat tidak muncul.** Pastikan lokasi sholat sudah diatur. Pengingat juga tidak tampil saat ada aplikasi fullscreen (kalau opsi sembunyi nyala) atau saat menu klik kanan terbuka.
 - **Windows: setelah update tampilannya masih versi lama.** Notch lama masih jalan. Dobel klik `jalankan.bat` (atau `install.bat`) supaya notch lama ditutup dan yang baru dijalankan.
-- **Efek mengetik tidak muncul di suatu aplikasi.** Cek saklarnya di menu **Efek mengetik**. Aplikasi yang tidak ada di daftar memang tidak memicu efek ini.
+- **Efek mengetik tidak muncul di suatu aplikasi.** Cek saklarnya di menu **Pengaturan → Efek mengetik**. Aplikasi yang tidak ada di daftar memang tidak memicu efek ini.
 
 ## Struktur
 
